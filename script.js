@@ -278,11 +278,6 @@ if (motionOK) {
     return pos;
   }
 
-  // Helper function to generate random size
-  function randomSize() {
-    return Math.random() * (280 - 180) + 180 + 'px'; // Random between 180px and 280px
-  }
-
   // Helper function to generate random size within a range
   function randomSize(min, max) {
     return Math.floor(Math.random() * (max - min) + min) + 'px';
@@ -317,8 +312,7 @@ if (motionOK) {
   ];
 
   function pickSrc(i){
-    const a = `assets/flowers/${i}.png`;
-    return a;
+    return `assets/flowers/${i}.png`;
   }
 
   let idx = 1;
@@ -327,7 +321,7 @@ if (motionOK) {
     section.el.style.position = section.el.style.position || 'relative';
     section.spots.forEach(spot => {
       if(idx > total) return;
-      const { primary, fallback } = pickSrc(idx);
+      const src = pickSrc(idx);
       const img = document.createElement('img');
       img.className = 'flower';
       img.decoding = 'async';
@@ -336,8 +330,8 @@ if (motionOK) {
       Object.assign(img.style, spot.pos);
       img.style.width = spot.size;
       img.style.transform = `rotate(${spot.rot || 0}deg)`;
-      img.onerror = () => { if (img.src !== location.origin + '/' + fallback && !img.src.endsWith(fallback)) img.src = fallback; };
-      img.src = primary;
+      img.onerror = () => { img.style.display = 'none'; };
+      img.src = src;
       section.el.appendChild(img);
       idx++;
     });
