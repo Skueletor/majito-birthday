@@ -1,16 +1,26 @@
 // Lenis + GSAP smooth scrolling and storytelling animations
 
-// 1) Init Lenis
-const lenis = new Lenis({
-  lerp: 0.12,
-  smoothWheel: true,
-});
-lenis.on('scroll', () => ScrollTrigger.update());
-function raf(time){
-  lenis.raf(time);
+// 1) Motion/capability detection + conditional smooth scroll
+const prefersMotion = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+const isSmallScreen = window.matchMedia('(max-width: 480px)').matches;
+const lowPerfDevice = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+const liteMode = !prefersMotion || isSmallScreen || lowPerfDevice;
+
+let lenis = null;
+if (!liteMode && typeof Lenis !== 'undefined'){
+  lenis = new Lenis({
+    lerp: 0.12,
+    smoothWheel: true,
+  });
+  lenis.on('scroll', () => {
+    if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.update();
+  });
+  function raf(time){
+    lenis.raf(time);
+    requestAnimationFrame(raf);
+  }
   requestAnimationFrame(raf);
 }
-requestAnimationFrame(raf);
 
 // 2) GSAP + ScrollTrigger
 // Register plugin
@@ -30,10 +40,10 @@ function fadeUp(targets, opts = {}){
 }
 
 // Respect reduced motion
-const motionOK = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+const motionOK = prefersMotion;
 
 // HERO enter animations
-if (motionOK){
+if (motionOK && !liteMode){
   fadeUp('.overtitle', { delay: 0.1 });
   // Title reveal with clip-path for a cleaner, modern look
   // eslint-disable-next-line no-undef
@@ -44,7 +54,7 @@ if (motionOK){
 
 // Parallax blobs/roses
 // eslint-disable-next-line no-undef
-if (motionOK) {
+if (motionOK && !liteMode) {
   ['.blob--tl','.blob--tr','.blob--bl','.blob--br'].forEach((sel, i) => {
     // eslint-disable-next-line no-undef
     gsap.to(sel, {
@@ -70,7 +80,7 @@ if (motionOK) {
   if(!section) return;
   const lines = section.querySelectorAll('.message__line');
 
-  if (motionOK){
+  if (motionOK && !liteMode){
     // eslint-disable-next-line no-undef
     ScrollTrigger.create({
       trigger: section,
@@ -130,18 +140,22 @@ if (motionOK) {
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', (e) => {
       const id = a.getAttribute('href');
-      if(!id || id === '#') return;
+        if(!id || id === '#') return;
       const target = document.querySelector(id);
-      if(!target) return;
+        if(!target) return;
       e.preventDefault();
-      lenis.scrollTo(target, { offset: -10 });
+        if (lenis){
+          lenis.scrollTo(target, { offset: -10 });
+        } else {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     });
   });
 })();
 
 // Section reveals (general polish)
 (function revealSections(){
-  if(!motionOK || typeof gsap === 'undefined') return;
+  if(!motionOK || typeof gsap === 'undefined' || liteMode) return;
   // eslint-disable-next-line no-undef
   gsap.utils.toArray('.panel').forEach((sec)=>{
     // eslint-disable-next-line no-undef
@@ -157,7 +171,7 @@ if (motionOK) {
 
 // Floating petals in hero
 (function petals(){
-  if(!motionOK || typeof gsap === 'undefined') return;
+  if(!motionOK || typeof gsap === 'undefined' || liteMode) return;
 
   // Create or reuse a full-page layer for petals
   let layer = document.querySelector('.petals-layer');
@@ -240,7 +254,7 @@ if (motionOK) {
 
 // Decorative SVG flowers across sections
 (function initFlowers(){
-  const total = 11; // 1.png ... 11.png
+  const total = liteMode ? 4 : 11; // reduce on liteMode
   
   // Helper function to generate edge-aligned position
   function generateEdgePosition(index, total) {
@@ -284,35 +298,35 @@ if (motionOK) {
   }
 
   const sections = [
-    { el: document.querySelector('.hero__bg'), spots: Array.from({ length: 8 }, (_, i) => ({
+    { el: document.querySelector('.hero__bg'), spots: Array.from({ length: liteMode ? 3 : 8 }, (_, i) => ({
       pos: generateEdgePosition(i, 8),
       size: randomSize(200, 280),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#mensaje'), spots: Array.from({ length: 4 }, (_, i) => ({
+    { el: document.querySelector('#mensaje'), spots: Array.from({ length: liteMode ? 1 : 4 }, (_, i) => ({
       pos: generateEdgePosition(i, 4),
       size: randomSize(160, 220),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#detalles'), spots: Array.from({ length: 4 }, (_, i) => ({
+    { el: document.querySelector('#detalles'), spots: Array.from({ length: liteMode ? 1 : 4 }, (_, i) => ({
       pos: generateEdgePosition(i, 4),
       size: randomSize(140, 200),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#ubicacion'), spots: Array.from({ length: 3 }, (_, i) => ({
+    { el: document.querySelector('#ubicacion'), spots: Array.from({ length: liteMode ? 1 : 3 }, (_, i) => ({
       pos: generateEdgePosition(i, 3),
       size: randomSize(140, 180),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#rsvp'), spots: Array.from({ length: 3 }, (_, i) => ({
+    { el: document.querySelector('#rsvp'), spots: Array.from({ length: liteMode ? 1 : 3 }, (_, i) => ({
       pos: generateEdgePosition(i, 3),
       size: randomSize(140, 180),
       rot: (Math.random() * 30 - 15)
     }))},
   ];
 
-  function pickSrc(i){
-    return `assets/flowers/${i}.png`;
+  function pickBase(i){
+    return `assets/flowers/${i}`;
   }
 
   let idx = 1;
@@ -321,24 +335,35 @@ if (motionOK) {
     section.el.style.position = section.el.style.position || 'relative';
     section.spots.forEach(spot => {
       if(idx > total) return;
-      const src = pickSrc(idx);
+      const base = pickBase(idx);
       const img = document.createElement('img');
       img.className = 'flower';
       img.decoding = 'async';
       img.loading = 'lazy';
+  img.setAttribute('fetchpriority', 'low');
       img.alt = '';
       Object.assign(img.style, spot.pos);
       img.style.width = spot.size;
       img.style.transform = `rotate(${spot.rot || 0}deg)`;
-      img.onerror = () => { img.style.display = 'none'; };
-      img.src = src;
+      // Try AVIF → WebP → PNG progressively
+      const exts = ['avif','webp','png'];
+      let tryIdx = 0;
+      img.onerror = () => {
+        tryIdx++;
+        if (tryIdx < exts.length) {
+          img.src = `${base}.${exts[tryIdx]}`;
+        } else {
+          img.style.display = 'none';
+        }
+      };
+      img.src = `${base}.${exts[0]}`;
       section.el.appendChild(img);
       idx++;
     });
   });
 
   // Gentle float animations for flowers
-  if (motionOK && typeof gsap !== 'undefined'){
+  if (motionOK && typeof gsap !== 'undefined' && !liteMode){
     // eslint-disable-next-line no-undef
     gsap.utils.toArray('.flower').forEach((el, i) => {
       const y = i % 2 ? -10 : 12;
@@ -353,72 +378,87 @@ if (motionOK) {
 // LEAFLET MAP
 (function initMap(){
   const wrap = document.getElementById('mapWrap');
-  if(!wrap || typeof L === 'undefined') return;
-
-  // Create inner div for Leaflet
-  const mapDiv = document.createElement('div');
-  mapDiv.id = 'map';
-  mapDiv.style.height = '100%';
-  wrap.appendChild(mapDiv);
+  if(!wrap) return;
 
   const gmapsUrl = wrap.getAttribute('data-gmaps-url');
   const address = wrap.getAttribute('data-address') || '';
-
   const openBtn = document.getElementById('openGmaps');
   if(openBtn && gmapsUrl) openBtn.href = gmapsUrl;
 
-  // Defaults (will be replaced by data-lat/lng or geocode)
-  let lat = parseFloat(wrap.getAttribute('data-lat'));
-  let lng = parseFloat(wrap.getAttribute('data-lng'));
+  let created = false;
+  function createMap(){
+    if (created || typeof L === 'undefined') return;
+    created = true;
+    // Create inner div for Leaflet
+    const mapDiv = document.createElement('div');
+    mapDiv.id = 'map';
+    mapDiv.style.height = '100%';
+    wrap.appendChild(mapDiv);
 
-  // Init map early with a neutral view
-  const map = L.map(mapDiv, {
-    zoomControl: true,
-    scrollWheelZoom: false,
-  }).setView([0,0], 2);
+    // Defaults (will be replaced by data-lat/lng or geocode)
+    let lat = parseFloat(wrap.getAttribute('data-lat'));
+    let lng = parseFloat(wrap.getAttribute('data-lng'));
 
-  // Use a clean light basemap, with fallback to standard OSM
-  const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-  });
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap',
-  });
-  carto.addTo(map);
-  carto.on('tileerror', () => {
-    if(!map.hasLayer(osm)) osm.addTo(map);
-  });
+    // Init map early with a neutral view
+    const map = L.map(mapDiv, {
+      zoomControl: true,
+      scrollWheelZoom: false,
+    }).setView([0,0], 2);
 
-  function addMarkerAndCenter(_lat, _lng){
-    const icon = L.divIcon({
-      className: 'marker-pin',
-      iconSize: [30,30],
-      popupAnchor: [0,-16]
+    // Use a clean light basemap, with fallback to standard OSM
+    const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
     });
-    const marker = L.marker([_lat, _lng], { icon }).addTo(map);
-    marker.bindPopup('<b>Majito Birthday</b><br>'+ (address || 'Ubicación'));
-    map.setView([_lat, _lng], 16, { animate: true });
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap',
+    });
+    carto.addTo(map);
+    carto.on('tileerror', () => {
+      if(!map.hasLayer(osm)) osm.addTo(map);
+    });
+
+    function addMarkerAndCenter(_lat, _lng){
+      const icon = L.divIcon({
+        className: 'marker-pin',
+        iconSize: [30,30],
+        popupAnchor: [0,-16]
+      });
+      const marker = L.marker([_lat, _lng], { icon }).addTo(map);
+      marker.bindPopup('<b>Majito Birthday</b><br>'+ (address || 'Ubicación'));
+      map.setView([_lat, _lng], 16, { animate: true });
+    }
+
+    if(!Number.isNaN(lat) && !Number.isNaN(lng)){
+      addMarkerAndCenter(lat, lng);
+    }else if(address){
+      // Try geocoding via Nominatim (public OSM) as a graceful auto-center
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+      fetch(url, { headers: { 'Accept': 'application/json' }})
+        .then(r => r.json())
+        .then(list => {
+          if(Array.isArray(list) && list.length){
+            const p = list[0];
+            addMarkerAndCenter(parseFloat(p.lat), parseFloat(p.lon));
+          }
+        })
+        .catch(()=>{/* swallow */});
+    }
   }
 
-  if(!Number.isNaN(lat) && !Number.isNaN(lng)){
-    addMarkerAndCenter(lat, lng);
-  }else if(address){
-    // Try geocoding via Nominatim (public OSM) as a graceful auto-center
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
-    fetch(url, { headers: { 'Accept': 'application/json' }})
-      .then(r => r.json())
-      .then(list => {
-        if(Array.isArray(list) && list.length){
-          const p = list[0];
-          addMarkerAndCenter(parseFloat(p.lat), parseFloat(p.lon));
-        } else {
-          // Keep world view
-        }
-      })
-      .catch(()=>{/* swallow */});
-  }
+  // Lazy init when the section is near viewport
+  const section = document.getElementById('ubicacion');
+  if (!section){ createMap(); return; }
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(entry => {
+      if (entry.isIntersecting){
+        createMap();
+        io.disconnect();
+      }
+    })
+  }, { rootMargin: '200px 0px', threshold: 0.2 });
+  io.observe(section);
 })();
 
 // GIFT QR MODAL

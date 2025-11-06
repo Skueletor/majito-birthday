@@ -9,14 +9,20 @@
   --sage: #cfe1d7;
   --primary: var(--rose);
 }
-/* Attempt to use local 'Railey' if provided; falls back gracefully */
+/* Local Railey font */
+@font-face{
+  font-family: 'Railey-PersonalUse';
+  src: url('assets/fonts/Railey-PersonalUse.woff2') format('woff2'),
+       url('assets/fonts/Railey-PersonalUse.woff') format('woff');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+/* Alias family 'Railey' */
 @font-face{
   font-family: 'Railey';
-  src: local('Railey'),
-       url('assets/fonts/Railey.woff2') format('woff2'),
-       url('assets/fonts/Railey.woff') format('woff'),
-       url('assets/fonts/Railey.ttf') format('truetype'),
-       url('assets/fonts/Railey.otf') format('opentype');
+  src: url('assets/fonts/Railey-PersonalUse.woff2') format('woff2'),
+       url('assets/fonts/Railey-PersonalUse.woff') format('woff');
   font-display: swap;
   font-style: normal;
   font-weight: 400;
@@ -47,6 +53,12 @@ body{
   background-size: 400px;
   background-position: center;
   background-blend-mode: overlay;
+}
+@media (max-width: 480px){
+  .section{
+    background-size: 280px;
+    background-blend-mode: normal;
+  }
 }
 .hero{isolation:isolate}
 
@@ -410,6 +422,15 @@ body{
   .blob{width:70vmin; height:70vmin; filter:blur(28px)}
   .rose{font-size:36px}
   .map-wrap{height:300px}
+}
+
+/* Mobile performance: tone down heavy effects */
+@media (max-width: 480px){
+  .hero__content{
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: none;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+  }
 }
 
 /* Hover-only styles to avoid odd states on touch */
