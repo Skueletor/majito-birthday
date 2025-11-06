@@ -325,8 +325,8 @@ if (motionOK && !liteMode) {
     }))},
   ];
 
-  function pickBase(i){
-    return `assets/flowers/${i}`;
+  function pickSrc(i){
+    return `assets/flowers/${i}.png`;
   }
 
   let idx = 1;
@@ -335,28 +335,17 @@ if (motionOK && !liteMode) {
     section.el.style.position = section.el.style.position || 'relative';
     section.spots.forEach(spot => {
       if(idx > total) return;
-      const base = pickBase(idx);
+      const src = pickSrc(idx);
       const img = document.createElement('img');
       img.className = 'flower';
       img.decoding = 'async';
       img.loading = 'lazy';
-  img.setAttribute('fetchpriority', 'low');
       img.alt = '';
       Object.assign(img.style, spot.pos);
       img.style.width = spot.size;
       img.style.transform = `rotate(${spot.rot || 0}deg)`;
-      // Try AVIF → WebP → PNG progressively
-      const exts = ['avif','webp','png'];
-      let tryIdx = 0;
-      img.onerror = () => {
-        tryIdx++;
-        if (tryIdx < exts.length) {
-          img.src = `${base}.${exts[tryIdx]}`;
-        } else {
-          img.style.display = 'none';
-        }
-      };
-      img.src = `${base}.${exts[0]}`;
+      img.onerror = () => { img.style.display = 'none'; };
+      img.src = src;
       section.el.appendChild(img);
       idx++;
     });
@@ -378,87 +367,72 @@ if (motionOK && !liteMode) {
 // LEAFLET MAP
 (function initMap(){
   const wrap = document.getElementById('mapWrap');
-  if(!wrap) return;
+  if(!wrap || typeof L === 'undefined') return;
+
+  // Create inner div for Leaflet
+  const mapDiv = document.createElement('div');
+  mapDiv.id = 'map';
+  mapDiv.style.height = '100%';
+  wrap.appendChild(mapDiv);
 
   const gmapsUrl = wrap.getAttribute('data-gmaps-url');
   const address = wrap.getAttribute('data-address') || '';
+
   const openBtn = document.getElementById('openGmaps');
   if(openBtn && gmapsUrl) openBtn.href = gmapsUrl;
 
-  let created = false;
-  function createMap(){
-    if (created || typeof L === 'undefined') return;
-    created = true;
-    // Create inner div for Leaflet
-    const mapDiv = document.createElement('div');
-    mapDiv.id = 'map';
-    mapDiv.style.height = '100%';
-    wrap.appendChild(mapDiv);
+  // Defaults (will be replaced by data-lat/lng or geocode)
+  let lat = parseFloat(wrap.getAttribute('data-lat'));
+  let lng = parseFloat(wrap.getAttribute('data-lng'));
 
-    // Defaults (will be replaced by data-lat/lng or geocode)
-    let lat = parseFloat(wrap.getAttribute('data-lat'));
-    let lng = parseFloat(wrap.getAttribute('data-lng'));
+  // Init map early with a neutral view
+  const map = L.map(mapDiv, {
+    zoomControl: true,
+    scrollWheelZoom: false,
+  }).setView([0,0], 2);
 
-    // Init map early with a neutral view
-    const map = L.map(mapDiv, {
-      zoomControl: true,
-      scrollWheelZoom: false,
-    }).setView([0,0], 2);
+  // Use a clean light basemap, with fallback to standard OSM
+  const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+  });
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap',
+  });
+  carto.addTo(map);
+  carto.on('tileerror', () => {
+    if(!map.hasLayer(osm)) osm.addTo(map);
+  });
 
-    // Use a clean light basemap, with fallback to standard OSM
-    const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
+  function addMarkerAndCenter(_lat, _lng){
+    const icon = L.divIcon({
+      className: 'marker-pin',
+      iconSize: [30,30],
+      popupAnchor: [0,-16]
     });
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap',
-    });
-    carto.addTo(map);
-    carto.on('tileerror', () => {
-      if(!map.hasLayer(osm)) osm.addTo(map);
-    });
-
-    function addMarkerAndCenter(_lat, _lng){
-      const icon = L.divIcon({
-        className: 'marker-pin',
-        iconSize: [30,30],
-        popupAnchor: [0,-16]
-      });
-      const marker = L.marker([_lat, _lng], { icon }).addTo(map);
-      marker.bindPopup('<b>Majito Birthday</b><br>'+ (address || 'Ubicación'));
-      map.setView([_lat, _lng], 16, { animate: true });
-    }
-
-    if(!Number.isNaN(lat) && !Number.isNaN(lng)){
-      addMarkerAndCenter(lat, lng);
-    }else if(address){
-      // Try geocoding via Nominatim (public OSM) as a graceful auto-center
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
-      fetch(url, { headers: { 'Accept': 'application/json' }})
-        .then(r => r.json())
-        .then(list => {
-          if(Array.isArray(list) && list.length){
-            const p = list[0];
-            addMarkerAndCenter(parseFloat(p.lat), parseFloat(p.lon));
-          }
-        })
-        .catch(()=>{/* swallow */});
-    }
+    const marker = L.marker([_lat, _lng], { icon }).addTo(map);
+    marker.bindPopup('<b>Majito Birthday</b><br>'+ (address || 'Ubicación'));
+    map.setView([_lat, _lng], 16, { animate: true });
   }
 
-  // Lazy init when the section is near viewport
-  const section = document.getElementById('ubicacion');
-  if (!section){ createMap(); return; }
-  const io = new IntersectionObserver((entries)=>{
-    entries.forEach(entry => {
-      if (entry.isIntersecting){
-        createMap();
-        io.disconnect();
-      }
-    })
-  }, { rootMargin: '200px 0px', threshold: 0.2 });
-  io.observe(section);
+  if(!Number.isNaN(lat) && !Number.isNaN(lng)){
+    addMarkerAndCenter(lat, lng);
+  }else if(address){
+    // Try geocoding via Nominatim (public OSM) as a graceful auto-center
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+    fetch(url, { headers: { 'Accept': 'application/json' }})
+      .then(r => r.json())
+      .then(list => {
+        if(Array.isArray(list) && list.length){
+          const p = list[0];
+          addMarkerAndCenter(parseFloat(p.lat), parseFloat(p.lon));
+        } else {
+          // Keep world view
+        }
+      })
+      .catch(()=>{/* swallow */});
+  }
 })();
 
 // GIFT QR MODAL

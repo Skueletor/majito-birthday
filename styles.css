@@ -54,12 +54,6 @@ body{
   background-position: center;
   background-blend-mode: overlay;
 }
-@media (max-width: 480px){
-  .section{
-    background-size: 280px;
-    background-blend-mode: normal;
-  }
-}
 .hero{isolation:isolate}
 
 /* Hero styling */
