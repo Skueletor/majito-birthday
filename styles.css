@@ -9,24 +9,7 @@
   --sage: #cfe1d7;
   --primary: var(--rose);
 }
-/* Local Railey font */
-@font-face{
-  font-family: 'Railey-PersonalUse';
-  src: url('assets/fonts/Railey-PersonalUse.woff2') format('woff2'),
-       url('assets/fonts/Railey-PersonalUse.woff') format('woff');
-  font-display: swap;
-  font-style: normal;
-  font-weight: 400;
-}
-/* Alias family 'Railey' */
-@font-face{
-  font-family: 'Railey';
-  src: url('assets/fonts/Railey-PersonalUse.woff2') format('woff2'),
-       url('assets/fonts/Railey-PersonalUse.woff') format('woff');
-  font-display: swap;
-  font-style: normal;
-  font-weight: 400;
-}
+/* Using Dancing Script from Google Fonts instead of local fonts */
 *{box-sizing:border-box}
 html,body{height:100%}
 html{scroll-behavior:initial}
@@ -97,14 +80,14 @@ body{
   box-shadow: 0 20px 40px rgba(0,0,0,0.05);
 }
 .overtitle{
-  font-family:'Railey-PersonalUse','Railey', "Dancing Script", cursive;
+  font-family: "Dancing Script", cursive;
   font-size: clamp(20px, 4vw, 36px);
   color:var(--rose-600);
   margin:0 0 .4rem;
   text-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 .title{
-  font-family:'Railey-PersonalUse','Railey', 'Dancing Script', cursive;
+  font-family: "Dancing Script", cursive;
   font-weight:600;
   font-size: clamp(46px, 10vw, 112px);
   line-height:1.04;

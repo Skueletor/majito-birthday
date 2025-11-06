@@ -1,26 +1,18 @@
 // Lenis + GSAP smooth scrolling and storytelling animations
 
-// 1) Motion/capability detection + conditional smooth scroll
-const prefersMotion = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
-const isSmallScreen = window.matchMedia('(max-width: 480px)').matches;
-const lowPerfDevice = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) || (navigator.deviceMemory && navigator.deviceMemory <= 4);
-const liteMode = !prefersMotion || isSmallScreen || lowPerfDevice;
-
-let lenis = null;
-if (!liteMode && typeof Lenis !== 'undefined'){
-  lenis = new Lenis({
-    lerp: 0.12,
-    smoothWheel: true,
-  });
-  lenis.on('scroll', () => {
-    if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.update();
-  });
-  function raf(time){
-    lenis.raf(time);
-    requestAnimationFrame(raf);
-  }
+// 1) Init Lenis
+const lenis = new Lenis({
+  lerp: window.innerWidth >= 768 ? 0.12 : 0.08, // Faster response on mobile
+  smoothWheel: window.innerWidth >= 768,        // Disable smooth scroll on mobile
+  touchMultiplier: 1.5,                         // Better touch response
+  wheelMultiplier: 0.8,                         // Smoother wheel
+});
+lenis.on('scroll', () => ScrollTrigger.update());
+function raf(time){
+  lenis.raf(time);
   requestAnimationFrame(raf);
 }
+requestAnimationFrame(raf);
 
 // 2) GSAP + ScrollTrigger
 // Register plugin
@@ -30,20 +22,25 @@ if (typeof gsap !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
 
-// Helper: fade up
+// Helper: fade up - optimized for mobile
 function fadeUp(targets, opts = {}){
+  // Skip animation on mobile for better performance
+  if (window.innerWidth < 768) {
+    // eslint-disable-next-line no-undef
+    return gsap.set(targets, { opacity: 1, y: 0 });
+  }
   // eslint-disable-next-line no-undef
   return gsap.fromTo(targets,
     { y: 24, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.9, ease: 'power2.out', ...opts }
+    { y: 0, opacity: 1, duration: 0.6, ease: 'power2.out', ...opts }
   );
 }
 
 // Respect reduced motion
-const motionOK = prefersMotion;
+const motionOK = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
 
 // HERO enter animations
-if (motionOK && !liteMode){
+if (motionOK){
   fadeUp('.overtitle', { delay: 0.1 });
   // Title reveal with clip-path for a cleaner, modern look
   // eslint-disable-next-line no-undef
@@ -52,20 +49,20 @@ if (motionOK && !liteMode){
   fadeUp('.btn--primary', { delay: 0.55 });
 }
 
-// Parallax blobs/roses
+// Parallax blobs/roses - disabled on mobile for performance
 // eslint-disable-next-line no-undef
-if (motionOK && !liteMode) {
+if (motionOK && window.innerWidth >= 768) {
   ['.blob--tl','.blob--tr','.blob--bl','.blob--br'].forEach((sel, i) => {
     // eslint-disable-next-line no-undef
     gsap.to(sel, {
-      yPercent: i % 2 === 0 ? -10 : 12,
-      xPercent: i % 2 === 0 ? 8 : -6,
+      yPercent: i % 2 === 0 ? -8 : 10,  // Reduced movement
+      xPercent: i % 2 === 0 ? 6 : -4,   // Reduced movement
       ease: 'none',
       scrollTrigger: {
         trigger: '#inicio',
         start: 'top top',
-        end: '+=120% ',
-        scrub: true,
+        end: '+=100%',  // Reduced scroll distance
+        scrub: 0.8,     // Smoother scrub
       }
     })
   })
@@ -80,13 +77,13 @@ if (motionOK && !liteMode) {
   if(!section) return;
   const lines = section.querySelectorAll('.message__line');
 
-  if (motionOK && !liteMode){
+  if (motionOK && window.innerWidth >= 768){
     // eslint-disable-next-line no-undef
     ScrollTrigger.create({
       trigger: section,
       start: 'top top',
-      end: '+=220%',
-      scrub: 1,
+      end: '+=180%', // Reduced scroll length on mobile
+      scrub: 0.8,    // Smoother scrub
       pin: true,
     });
 
@@ -140,22 +137,18 @@ if (motionOK && !liteMode) {
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', (e) => {
       const id = a.getAttribute('href');
-        if(!id || id === '#') return;
+      if(!id || id === '#') return;
       const target = document.querySelector(id);
-        if(!target) return;
+      if(!target) return;
       e.preventDefault();
-        if (lenis){
-          lenis.scrollTo(target, { offset: -10 });
-        } else {
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+      lenis.scrollTo(target, { offset: -10 });
     });
   });
 })();
 
 // Section reveals (general polish)
 (function revealSections(){
-  if(!motionOK || typeof gsap === 'undefined' || liteMode) return;
+  if(!motionOK || typeof gsap === 'undefined') return;
   // eslint-disable-next-line no-undef
   gsap.utils.toArray('.panel').forEach((sec)=>{
     // eslint-disable-next-line no-undef
@@ -171,7 +164,7 @@ if (motionOK && !liteMode) {
 
 // Floating petals in hero
 (function petals(){
-  if(!motionOK || typeof gsap === 'undefined' || liteMode) return;
+  if(!motionOK || typeof gsap === 'undefined') return;
 
   // Create or reuse a full-page layer for petals
   let layer = document.querySelector('.petals-layer');
@@ -254,7 +247,7 @@ if (motionOK && !liteMode) {
 
 // Decorative SVG flowers across sections
 (function initFlowers(){
-  const total = liteMode ? 4 : 11; // reduce on liteMode
+  const total = 11; // 1.png ... 11.png
   
   // Helper function to generate edge-aligned position
   function generateEdgePosition(index, total) {
@@ -298,27 +291,27 @@ if (motionOK && !liteMode) {
   }
 
   const sections = [
-    { el: document.querySelector('.hero__bg'), spots: Array.from({ length: liteMode ? 3 : 8 }, (_, i) => ({
+    { el: document.querySelector('.hero__bg'), spots: Array.from({ length: 8 }, (_, i) => ({
       pos: generateEdgePosition(i, 8),
       size: randomSize(200, 280),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#mensaje'), spots: Array.from({ length: liteMode ? 1 : 4 }, (_, i) => ({
+    { el: document.querySelector('#mensaje'), spots: Array.from({ length: 4 }, (_, i) => ({
       pos: generateEdgePosition(i, 4),
       size: randomSize(160, 220),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#detalles'), spots: Array.from({ length: liteMode ? 1 : 4 }, (_, i) => ({
+    { el: document.querySelector('#detalles'), spots: Array.from({ length: 4 }, (_, i) => ({
       pos: generateEdgePosition(i, 4),
       size: randomSize(140, 200),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#ubicacion'), spots: Array.from({ length: liteMode ? 1 : 3 }, (_, i) => ({
+    { el: document.querySelector('#ubicacion'), spots: Array.from({ length: 3 }, (_, i) => ({
       pos: generateEdgePosition(i, 3),
       size: randomSize(140, 180),
       rot: (Math.random() * 30 - 15)
     }))},
-    { el: document.querySelector('#rsvp'), spots: Array.from({ length: liteMode ? 1 : 3 }, (_, i) => ({
+    { el: document.querySelector('#rsvp'), spots: Array.from({ length: 3 }, (_, i) => ({
       pos: generateEdgePosition(i, 3),
       size: randomSize(140, 180),
       rot: (Math.random() * 30 - 15)
@@ -352,7 +345,7 @@ if (motionOK && !liteMode) {
   });
 
   // Gentle float animations for flowers
-  if (motionOK && typeof gsap !== 'undefined' && !liteMode){
+  if (motionOK && typeof gsap !== 'undefined'){
     // eslint-disable-next-line no-undef
     gsap.utils.toArray('.flower').forEach((el, i) => {
       const y = i % 2 ? -10 : 12;
