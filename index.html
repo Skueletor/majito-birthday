@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Majito's Birthday</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Raleway:wght@300;500;700&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet" />
+  <!-- Railey from OnlineWebFonts -->
+  <link href="https://db.onlinewebfonts.com/t/9c080e9c6cab37228b6efdfd9fb6e2f9.woff2" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="./styles.css" />
+  <!-- Preload Railey font if available -->
+  <link rel="preload" href="assets/fonts/Railey.woff2" as="font" type="font/woff2" crossorigin>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+    <!-- Meta -->
+  <meta name="description" content="Majito's 24th birthday party invitation." />
+  <meta name="theme-color" content="#ffe7ef" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- HERO -->
+      <header class="section hero" id="inicio">
+        <div class="hero__bg">
+          <!-- Pastel blobs as watercolor vibe; replace later with real floral PNGs -->
+          <div class="blob blob--tl" aria-hidden="true"></div>
+          <div class="blob blob--tr" aria-hidden="true"></div>
+          <div class="blob blob--bl" aria-hidden="true"></div>
+          <div class="blob blob--br" aria-hidden="true"></div>
+
+          <!-- Decorative flowers are injected via JS using SVGs in assets/flowers -->
+        </div>
+
+        <div class="container hero__content">
+          <p class="overtitle">Mis 24 años</p>
+          <h1 class="title">
+            Majito<br />
+            <span>Birthday party</span>
+          </h1>
+          <p class="subtitle">Una tarde con comida, traguitos y risas ✨</p>
+          <a href="#rsvp" class="btn btn--primary">Confirmar asistencia</a>
+        </div>
+      </header>
+
+      <!-- STORY / MESSAGE (pinned) -->
+      <section class="section panel panel--blush" id="mensaje">
+        <div class="container message">
+          <h2 class="message__title">Te tengo una invitación…</h2>
+          <p class="message__line" data-order="1">Estás invitado a una tarde con comida, traguitos y grandes momentos.</p>
+          <p class="message__line" data-order="2">¿Te la vas a perder? 😉</p>
+          <p class="message__line" data-order="3">Desliza para ver los detalles.</p>
+        </div>
+      </section>
+
+      <!-- DETAILS -->
+      <section class="section panel panel--cream" id="detalles">
+        <div class="container grid details">
+          <div class="card">
+            <h3>¿Cuándo?</h3>
+            <p><strong>16 de noviembre</strong><br/>2:30 p.m.</p>
+          </div>
+          <div class="card">
+            <h3>¿Dónde?</h3>
+            <p>
+              <strong>Calle 25 de Julio, casa #12</strong><br/>
+              <a class="link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=-17.863222,-63.226056">Ver ubicación →</a>
+            </p>
+          </div>
+          <div class="card highlight">
+            <h3>Dress Code</h3>
+            <p><strong>Girls</strong> — Coquette White 🤍✨
+                <br /><strong>Hombres</strong> — White Top + Denim/Beige</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- MAPA (Leaflet) -->
+      <section class="section panel panel--cream" id="ubicacion">
+        <div class="container">
+          <h2 class="message__title" style="text-align:center; margin-bottom:1rem">Ubicación</h2>
+          <div
+            class="map-wrap"
+            id="mapWrap"
+            data-gmaps-url="https://www.google.com/maps/search/?api=1&query=-17.863222,-63.226056"
+            data-address="Calle 25 de Julio, casa #12"
+            data-lat="-17.863222"
+            data-lng="-63.226056"
+          ></div>
+          <div class="map-actions">
+            <a class="btn" id="openGmaps" target="_blank" rel="noreferrer noopener">Abrir en Google Maps</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- RSVP CTA -->
+      <section class="section panel panel--rose" id="rsvp">
+        <div class="container rsvp">
+          <h2 class="rsvp__title">¿Vienes?</h2>
+          <p class="rsvp__text">Toca el botón para confirmar tu asistencia.</p>
+          <div class="cta">
+            <a class="btn btn--primary btn--lg" target="_blank" href="https://wa.link/ccwp4a">Confirmar por WhatsApp</a>
+          </div>
+          <small class="muted">Reemplaza el número en el enlace cuando lo tengas.</small>
+          <div class="gift">
+            <button class="link-like" id="giftOpen">Si no sabes qué llevar de regalo, dale click aquí</button>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div class="container">
+          <span class="muted">Made with ❤️ by Juanito</span>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Libraries -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@latest/dist/lenis.min.js"></script>
+    <!-- Leaflet JS -->
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <!-- App script -->
+  <script defer src="./script.js"></script>
+
+    <!-- Gift Modal -->
+    <div class="modal" id="giftModal" aria-hidden="true" role="dialog" aria-modal="false">
+      <div class="modal__backdrop" data-close></div>
+      <div class="modal__content" role="document">
+        <button class="modal__close-x" type="button" aria-label="Cerrar" title="Cerrar" hidden>&times;</button>
+        <img id="giftImg" src="" alt="QR de pago" loading="lazy" />
+        <div class="modal__message">Para que no te estreses pensando qué regalar, te dejo mi QR 🎁</div>
+        <div class="modal__actions">
+          <button class="btn" id="giftDownload">Descargar QR</button>
+          <button class="btn" id="giftClose" data-close>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
