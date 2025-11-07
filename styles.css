@@ -107,6 +107,12 @@ body{
   border: 1px solid rgba(224,138,168,0.15);
   box-shadow: 0 20px 40px rgba(0,0,0,0.05);
 }
+@supports not (backdrop-filter: blur(10px)) {
+  .hero__content{
+    backdrop-filter: none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.88));
+  }
+}
 /* Ensure content containers appear above decorative images */
 .section > .container, .section .container.details, .card{
   position:relative;
@@ -239,6 +245,8 @@ body{
   pointer-events: none;
   z-index: 0; /* behave like background: below regular content, well below modal (50) */
   overflow: visible;
+  contain: layout paint;
+  will-change: transform;
 }
 .petal{
   position:absolute;
@@ -306,8 +314,9 @@ body{
   box-shadow:0 20px 60px rgba(0,0,0,.25); 
   width:min(92vw, 420px);
   margin:auto;
-  transform: translateY(50px);
+  transform: translate3d(0, 50px, 0);
   opacity: 0;
+  will-change: transform, opacity;
   transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
               opacity 0.4s ease;
 }
@@ -362,7 +371,7 @@ body{
   100%{ transform: translateY(0) scale(1) rotate(6deg); opacity:1}
 }
 .modal.is-open .modal__content {
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
   opacity: 1;
 }
 .modal__content::before {
@@ -437,7 +446,7 @@ body{
 /* Mobile performance: tone down heavy effects */
 @media (max-width: 480px){
   .hero__content{
-    background: rgba(255,255,255,0.92);
+    background: linear-gradient(180deg, rgba(255,255,255,0.97), rgba(255,255,255,0.9));
     backdrop-filter: none;
     box-shadow: 0 10px 20px rgba(0,0,0,0.05);
   }
@@ -457,11 +466,11 @@ body{
 /* Modal Polaroid Effect */
 @keyframes modalEnter {
   0% {
-    transform: translate(-100vw, 100vh) rotate(-45deg);
+    transform: translate3d(-100vw, 100vh, 0) rotate(-45deg);
     opacity: 0;
   }
   70% {
-    transform: translate(0, 0) rotate(0);
+    transform: translate3d(0, 0, 0) rotate(0);
     opacity: 1;
   }
   85% {
@@ -474,7 +483,7 @@ body{
 
 @keyframes cometEffect {
   0% {
-    transform: translate(-100vw, 100vh) scale(0.5) rotate(-45deg);
+    transform: translate3d(-100vw, 100vh, 0) scale(0.5) rotate(-45deg);
     opacity: 0;
   }
   30% {
@@ -484,18 +493,19 @@ body{
     opacity: 1;
   }
   100% {
-    transform: translate(100vw, -100vh) scale(1.5) rotate(-45deg);
+    transform: translate3d(100vw, -100vh, 0) scale(1.5) rotate(-45deg);
     opacity: 0;
   }
 }
 
 .modal__content {
-  transform: translate(-100vw, 100vh);
+  transform: translate3d(-100vw, 100vh, 0);
   opacity: 0;
   padding: 1.5rem 1.5rem 2.5rem !important;
   border-radius: 4px !important;
   box-shadow: 0 20px 60px rgba(0,0,0,.25), 0 0 0 12px #fff !important;
   max-width: min(92vw, 420px) !important;
+  will-change: transform, opacity;
 }
 
 .modal.is-open .modal__content {
