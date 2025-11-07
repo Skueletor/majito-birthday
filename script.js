@@ -1,25 +1,47 @@
 // Lenis + GSAP smooth scrolling and storytelling animations
 
-// 1) Init Lenis
-const lenis = new Lenis({
-  lerp: window.innerWidth >= 768 ? 0.12 : 0.08, // Faster response on mobile
-  smoothWheel: window.innerWidth >= 768,        // Disable smooth scroll on mobile
-  touchMultiplier: 1.5,                         // Better touch response
-  wheelMultiplier: 0.8,                         // Smoother wheel
-});
-lenis.on('scroll', () => ScrollTrigger.update());
-function raf(time){
-  lenis.raf(time);
+// Respect reduced motion (single source of truth)
+const motionOK = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+
+// 1) Init Lenis (only when motion is allowed)
+let lenis = null;
+if (motionOK) {
+  lenis = new Lenis({
+    lerp: isDesktop ? 0.12 : 0.08,      // Snappier on desktop, gentle on mobile
+    smoothWheel: isDesktop,             // Disable wheel smoothing on mobile
+    touchMultiplier: 1.4,               // Balanced touch response
+    wheelMultiplier: 0.85,              // Slightly smoother wheel
+  });
+  // Keep ScrollTrigger in sync with virtual scrolling
+  lenis.on('scroll', () => { if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.update(); });
+  function raf(time){
+    lenis.raf(time);
+    requestAnimationFrame(raf);
+  }
   requestAnimationFrame(raf);
 }
-requestAnimationFrame(raf);
 
 // 2) GSAP + ScrollTrigger
-// Register plugin
+// Register plugin and set up responsive matchMedia helpers
+// eslint-disable-next-line no-undef
+let mm = null;
 // eslint-disable-next-line no-undef
 if (typeof gsap !== 'undefined') {
   // eslint-disable-next-line no-undef
   gsap.registerPlugin(ScrollTrigger);
+  // eslint-disable-next-line no-undef
+  mm = gsap.matchMedia();
+  // Refresh triggers once all assets are loaded (positions will be accurate)
+  window.addEventListener('load', () => {
+    if (typeof ScrollTrigger !== 'undefined') {
+      try { ScrollTrigger.refresh(); } catch(_){}
+    }
+    // Ensure Lenis recalculates on layout changes
+    if (lenis && typeof lenis.resize === 'function') {
+      try { lenis.resize(); } catch(_){}
+    }
+  });
 }
 
 // Helper: fade up - optimized for mobile
@@ -36,36 +58,41 @@ function fadeUp(targets, opts = {}){
   );
 }
 
-// Respect reduced motion
-const motionOK = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
-
-// HERO enter animations
-if (motionOK){
-  fadeUp('.overtitle', { delay: 0.1 });
-  // Title reveal with clip-path for a cleaner, modern look
-  // eslint-disable-next-line no-undef
-  gsap.fromTo('.title', { clipPath: 'inset(0 0 100% 0)', opacity: 1 }, { clipPath: 'inset(0 0 0% 0)', duration: 1.1, ease: 'power3.out', delay: 0.15 });
-  fadeUp('.subtitle', { delay: 0.45 });
-  fadeUp('.btn--primary', { delay: 0.55 });
+// HERO enter animations (responsive & motion-aware)
+if (mm) {
+  mm.add('(prefers-reduced-motion: no-preference)', () => {
+    fadeUp('.overtitle', { delay: 0.1 });
+    // Title reveal with clip-path for a cleaner, modern look
+    // eslint-disable-next-line no-undef
+    gsap.fromTo('.title', { clipPath: 'inset(0 0 100% 0)', opacity: 1 }, { clipPath: 'inset(0 0 0% 0)', duration: 1.0, ease: 'power3.out', delay: 0.15 });
+    fadeUp('.subtitle', { delay: 0.45 });
+    fadeUp('.btn--primary', { delay: 0.55 });
+  });
+  // Mobile-specific subtle hero reveal (no clipPath heavy effect)
+  mm.add('(max-width: 767px) and (prefers-reduced-motion: no-preference)', () => {
+    // eslint-disable-next-line no-undef
+    gsap.from('.hero__content', { opacity:0, y:30, duration:0.8, ease:'power2.out' });
+  });
 }
 
-// Parallax blobs/roses - disabled on mobile for performance
-// eslint-disable-next-line no-undef
-if (motionOK && window.innerWidth >= 768) {
-  ['.blob--tl','.blob--tr','.blob--bl','.blob--br'].forEach((sel, i) => {
-    // eslint-disable-next-line no-undef
-    gsap.to(sel, {
-      yPercent: i % 2 === 0 ? -8 : 10,  // Reduced movement
-      xPercent: i % 2 === 0 ? 6 : -4,   // Reduced movement
-      ease: 'none',
-      scrollTrigger: {
-        trigger: '#inicio',
-        start: 'top top',
-        end: '+=100%',  // Reduced scroll distance
-        scrub: 0.8,     // Smoother scrub
-      }
+// Parallax blobs/roses - desktop only for performance
+if (mm) {
+  mm.add('(min-width: 768px) and (prefers-reduced-motion: no-preference)', () => {
+    ['.blob--tl','.blob--tr','.blob--bl','.blob--br'].forEach((sel, i) => {
+      // eslint-disable-next-line no-undef
+      gsap.to(sel, {
+        yPercent: i % 2 === 0 ? -8 : 10,  // Reduced movement
+        xPercent: i % 2 === 0 ? 6 : -4,   // Reduced movement
+        ease: 'none',
+        scrollTrigger: {
+          trigger: '#inicio',
+          start: 'top top',
+          end: '+=100%',  // Reduced scroll distance
+          scrub: 0.8,     // Smoother scrub
+        }
+      })
     })
-  })
+  });
 }
 
 // Floating roses loop (gentle)
@@ -77,37 +104,62 @@ if (motionOK && window.innerWidth >= 768) {
   if(!section) return;
   const lines = section.querySelectorAll('.message__line');
 
-  if (motionOK && window.innerWidth >= 768){
-    // eslint-disable-next-line no-undef
-    ScrollTrigger.create({
-      trigger: section,
-      start: 'top top',
-      end: '+=180%', // Reduced scroll length on mobile
-      scrub: 0.8,    // Smoother scrub
-      pin: true,
-    });
-
-    // eslint-disable-next-line no-undef
-    const tl = gsap.timeline({
-      scrollTrigger: {
+  if (mm) {
+    // Desktop pinned storytelling
+    mm.add('(min-width: 768px) and (prefers-reduced-motion: no-preference)', () => {
+      // eslint-disable-next-line no-undef
+      ScrollTrigger.create({
         trigger: section,
         start: 'top top',
-        end: '+=220%',
-        scrub: 1,
-      }
-    });
+        end: '+=180%', // Reduced scroll length on mobile
+        scrub: 0.8,    // Smoother scrub
+        pin: true,
+      });
 
-    tl.add(fadeUp('.message__title', { duration: 0.6 }))
-      .to({}, { duration: 0.25 })
-      .to(lines[0], { opacity: 1, y: 0, duration: 0.3 })
-      .to({}, { duration: 0.25 })
-      .to(lines[0], { opacity: 0, duration: 0.2 })
-      .to(lines[1], { opacity: 1, y: 0, duration: 0.3 })
-      .to({}, { duration: 0.25 })
-      .to(lines[1], { opacity: 0, duration: 0.2 })
-      .to(lines[2], { opacity: 1, y: 0, duration: 0.3 })
-      .to({}, { duration: 0.25 });
-  } else {
+      // eslint-disable-next-line no-undef
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: 'top top',
+          end: '+=220%',
+          scrub: 1,
+        }
+      });
+
+      tl.add(fadeUp('.message__title', { duration: 0.6 }))
+        .to({}, { duration: 0.25 })
+        .to(lines[0], { opacity: 1, y: 0, duration: 0.3 })
+        .to({}, { duration: 0.25 })
+        .to(lines[0], { opacity: 0, duration: 0.2 })
+        .to(lines[1], { opacity: 1, y: 0, duration: 0.3 })
+        .to({}, { duration: 0.25 })
+        .to(lines[1], { opacity: 0, duration: 0.2 })
+        .to(lines[2], { opacity: 1, y: 0, duration: 0.3 })
+        .to({}, { duration: 0.25 });
+    });
+    // Mobile: simple progressive reveal on scroll (no pin)
+    mm.add('(max-width: 767px) and (prefers-reduced-motion: no-preference)', () => {
+      // Title
+      fadeUp('.message__title', { duration:0.6 });
+      // Lines: appear when each reaches viewport
+      lines.forEach((ln, idx) => {
+        // eslint-disable-next-line no-undef
+        gsap.from(ln, {
+          opacity:0,
+          y:22,
+          duration:0.45,
+          ease:'power2.out',
+          delay: idx * 0.15,
+          scrollTrigger:{
+            trigger: ln,
+            start: 'top 85%',
+            toggleActions: 'play none none none'
+          }
+        });
+      });
+    });
+  }
+  if (!motionOK) {
     // No motion: show all lines statically
     lines.forEach(el => { el.style.opacity = 1; el.style.transform = 'none'; });
   }
@@ -118,18 +170,22 @@ if (motionOK && window.innerWidth >= 768) {
   const section = document.querySelector('#detalles');
   if(!section) return;
   const cards = section.querySelectorAll('.card');
-  // eslint-disable-next-line no-undef
-  gsap.from(cards, {
-    opacity: 0,
-    y: 24,
-    duration: 0.6,
-    stagger: 0.15,
-    ease: 'power2.out',
-    scrollTrigger: {
-      trigger: section,
-      start: 'top 70%',
-    }
-  });
+  if (motionOK && typeof gsap !== 'undefined') {
+    // eslint-disable-next-line no-undef
+    gsap.from(cards, {
+      opacity: 0,
+      y: 24,
+      duration: 0.55,
+      stagger: 0.12,
+      ease: 'power2.out',
+      scrollTrigger: {
+        trigger: section,
+        start: 'top 78%',
+      }
+    });
+  } else {
+    cards.forEach(el => { el.style.opacity = 1; el.style.transform = 'none'; });
+  }
 })();
 
 // Smooth anchor links with Lenis
@@ -141,7 +197,12 @@ if (motionOK && window.innerWidth >= 768) {
       const target = document.querySelector(id);
       if(!target) return;
       e.preventDefault();
-      lenis.scrollTo(target, { offset: -10 });
+      if (lenis) {
+        lenis.scrollTo(target, { offset: -10 });
+      } else {
+        const top = target.getBoundingClientRect().top + (window.pageYOffset || document.documentElement.scrollTop) - 10;
+        window.scrollTo({ top, behavior: motionOK ? 'smooth' : 'auto' });
+      }
     });
   });
 })();
@@ -175,7 +236,7 @@ if (motionOK && window.innerWidth >= 768) {
     document.body.prepend(layer);
   }
 
-  const MAX_ACTIVE = 20; // fewer concurrent petals for a calmer, professional look
+  const MAX_ACTIVE = isDesktop ? 20 : 10; // fewer on mobile for a calmer, professional look
   let active = 0;
 
   function rand(min, max){ return Math.random() * (max - min) + min; }
@@ -234,7 +295,8 @@ if (motionOK && window.innerWidth >= 768) {
   function scheduleNext(){
     const delay = rand(900, 2200); // slower spawn cadence
     setTimeout(()=>{
-      if (active < MAX_ACTIVE) spawnPetal();
+      // Skip spawning when tab is hidden or too many are active
+      if (!document.hidden && active < MAX_ACTIVE) spawnPetal();
       scheduleNext();
     }, delay);
   }
@@ -245,112 +307,86 @@ if (motionOK && window.innerWidth >= 768) {
   scheduleNext();
 })();
 
-// Decorative SVG flowers across sections
-(function initFlowers(){
-  const total = 11; // 1.png ... 11.png
-  
-  // Helper function to generate edge-aligned position
-  function generateEdgePosition(index, total) {
+// Decorative images across sections (flowers + beers)
+(function initDecor(){
+  const isMobile = window.innerWidth < 768;
+  const MAX_SIZE = 140; // px cap requested
+  const MIN_SIZE = 40;
+  const flowerCount = (sectionLarge, sectionSmall) => isMobile ? sectionSmall : sectionLarge;
+
+  // Helpers
+  function rand(min, max){ return Math.random() * (max - min) + min; }
+  function randomSize(min=MIN_SIZE, max=MAX_SIZE){ return Math.round(rand(min, max)) + 'px'; }
+
+  // Edge-aligned position with slight randomness
+  function edgePos(i, total){
     const pos = {};
-    const margin = 8; // Margen mínimo desde el borde en vw/vh
-    
-    // Divide el espacio disponible en secciones para evitar superposiciones
-    const section = index / total;
-    
-    if (section < 0.25) {
-      // Top edge
-      pos.top = margin + 'vh';
-      pos.left = (margin + (100 - margin * 2) * (index / (total * 0.25))) + 'vw';
-    } else if (section < 0.5) {
-      // Right edge
-      pos.right = margin + 'vw';
-      pos.top = (margin + (100 - margin * 2) * ((index - total * 0.25) / (total * 0.25))) + 'vh';
-    } else if (section < 0.75) {
-      // Bottom edge
-      pos.bottom = margin + 'vh';
-      pos.right = (margin + (100 - margin * 2) * ((index - total * 0.5) / (total * 0.25))) + 'vw';
-    } else {
-      // Left edge
-      pos.left = margin + 'vw';
-      pos.bottom = (margin + (100 - margin * 2) * ((index - total * 0.75) / (total * 0.25))) + 'vh';
-    }
-    
-    // Añade algo de aleatoriedad a la posición pero manteniéndola cerca del borde
-    const randomOffset = (Math.random() * 5 + 2); // 2-7vh/vw de offset aleatorio
-    if (pos.top) pos.top = `calc(${pos.top} + ${randomOffset}vh)`;
-    if (pos.right) pos.right = `calc(${pos.right} + ${randomOffset}vw)`;
-    if (pos.bottom) pos.bottom = `calc(${pos.bottom} + ${randomOffset}vh)`;
-    if (pos.left) pos.left = `calc(${pos.left} + ${randomOffset}vw)`;
-    
+    const margin = 6; // vw/vh
+    const section = i / total;
+    if (section < 0.25){ pos.top = margin + 'vh'; pos.left = (margin + (100 - margin*2) * (i / (total*0.25))) + 'vw'; }
+    else if (section < 0.5){ pos.right = margin + 'vw'; pos.top = (margin + (100 - margin*2) * ((i - total*0.25)/(total*0.25))) + 'vh'; }
+    else if (section < 0.75){ pos.bottom = margin + 'vh'; pos.right = (margin + (100 - margin*2) * ((i - total*0.5)/(total*0.25))) + 'vw'; }
+    else { pos.left = margin + 'vw'; pos.bottom = (margin + (100 - margin*2) * ((i - total*0.75)/(total*0.25))) + 'vh'; }
+    const o = rand(1.5, 5.5);
+    if (pos.top) pos.top = `calc(${pos.top} + ${o}vh)`;
+    if (pos.right) pos.right = `calc(${pos.right} + ${o}vw)`;
+    if (pos.bottom) pos.bottom = `calc(${pos.bottom} + ${o}vh)`;
+    if (pos.left) pos.left = `calc(${pos.left} + ${o}vw)`;
     return pos;
   }
 
-  // Helper function to generate random size within a range
-  function randomSize(min, max) {
-    return Math.floor(Math.random() * (max - min) + min) + 'px';
-  }
+  // Sources
+  const flowerTotal = 11;
+  const flowerSrc = (i) => `assets/flowers/${i}.png`;
+  const beerSrcs = [ 'assets/images/beer1.png', 'assets/images/beer2.png' ];
 
   const sections = [
-    { el: document.querySelector('.hero__bg'), spots: Array.from({ length: 8 }, (_, i) => ({
-      pos: generateEdgePosition(i, 8),
-      size: randomSize(200, 280),
-      rot: (Math.random() * 30 - 15)
-    }))},
-    { el: document.querySelector('#mensaje'), spots: Array.from({ length: 4 }, (_, i) => ({
-      pos: generateEdgePosition(i, 4),
-      size: randomSize(160, 220),
-      rot: (Math.random() * 30 - 15)
-    }))},
-    { el: document.querySelector('#detalles'), spots: Array.from({ length: 4 }, (_, i) => ({
-      pos: generateEdgePosition(i, 4),
-      size: randomSize(140, 200),
-      rot: (Math.random() * 30 - 15)
-    }))},
-    { el: document.querySelector('#ubicacion'), spots: Array.from({ length: 3 }, (_, i) => ({
-      pos: generateEdgePosition(i, 3),
-      size: randomSize(140, 180),
-      rot: (Math.random() * 30 - 15)
-    }))},
-    { el: document.querySelector('#rsvp'), spots: Array.from({ length: 3 }, (_, i) => ({
-      pos: generateEdgePosition(i, 3),
-      size: randomSize(140, 180),
-      rot: (Math.random() * 30 - 15)
-    }))},
+    { el: document.querySelector('.hero__bg'), flowers: flowerCount(18, 10), beers: 1 },
+    { el: document.querySelector('#mensaje'), flowers: flowerCount(8, 5), beers: 0 },
+    { el: document.querySelector('#detalles'), flowers: flowerCount(8, 5), beers: 1 },
+    { el: document.querySelector('#ubicacion'), flowers: flowerCount(6, 4), beers: 0 },
+    { el: document.querySelector('#rsvp'), flowers: flowerCount(6, 4), beers: 1 },
   ];
 
-  function pickSrc(i){
-    return `assets/flowers/${i}.png`;
-  }
+  let fIdx = 1;
+  sections.forEach(({ el, flowers, beers }) => {
+    if (!el) return;
+    el.style.position = el.style.position || 'relative';
 
-  let idx = 1;
-  sections.forEach(section => {
-    if(!section.el) return;
-    section.el.style.position = section.el.style.position || 'relative';
-    section.spots.forEach(spot => {
-      if(idx > total) return;
-      const src = pickSrc(idx);
+    const total = flowers + beers;
+    for (let i=0; i<total; i++){
+      const isBeer = i >= flowers; // put beers after flowers for edge distribution
       const img = document.createElement('img');
-      img.className = 'flower';
+      img.className = 'decor ' + (isBeer ? 'decor--beer' : 'decor--flower');
       img.decoding = 'async';
       img.loading = 'lazy';
       img.alt = '';
-      Object.assign(img.style, spot.pos);
-      img.style.width = spot.size;
-      img.style.transform = `rotate(${spot.rot || 0}deg)`;
+
+      const pos = edgePos(i, Math.max(total, 8));
+      Object.assign(img.style, pos);
+      const size = isBeer ? randomSize(100, MAX_SIZE) : randomSize(MIN_SIZE, MAX_SIZE);
+      img.style.width = size;
+      img.style.transform = `rotate(${Math.round(rand(-18, 18))}deg)`;
       img.onerror = () => { img.style.display = 'none'; };
-      img.src = src;
-      section.el.appendChild(img);
-      idx++;
-    });
+      img.src = isBeer ? beerSrcs[Math.floor(rand(0, beerSrcs.length))] : flowerSrc(fIdx);
+
+      // For non-hero sections, insert before first child so it layers behind container content (with z-index fix as fallback)
+      if (!el.classList.contains('hero__bg')) {
+        el.insertBefore(img, el.firstChild);
+      } else {
+        el.appendChild(img);
+      }
+      if (!isBeer){ fIdx++; if (fIdx > flowerTotal) fIdx = 1; }
+    }
   });
 
-  // Gentle float animations for flowers
+  // Gentle float animations
   if (motionOK && typeof gsap !== 'undefined'){
     // eslint-disable-next-line no-undef
-    gsap.utils.toArray('.flower').forEach((el, i) => {
-      const y = i % 2 ? -10 : 12;
-      const r = i % 2 ? -6 : 6;
-      const d = 3.5 + Math.random()*1.8;
+    gsap.utils.toArray('.decor').forEach((el, i) => {
+      const y = i % 2 ? -8 : 10;
+      const r = i % 2 ? -5 : 5;
+      const d = 3 + Math.random()*1.6;
       // eslint-disable-next-line no-undef
       gsap.to(el, { y, rotation: `+=${r}`, duration: d, yoyo: true, repeat: -1, ease: 'sine.inOut' });
     });
@@ -441,6 +477,18 @@ if (motionOK && window.innerWidth >= 768) {
 
   const REMOTE_URL = 'https://i.ibb.co/yFFc2XYW/qr-code.png';
   const LOCAL_URL = 'assets/qr-code.png';
+  // Preload QR early (both remote and fallback) for instant display
+  function preloadQR(){
+    const sources = [REMOTE_URL, LOCAL_URL];
+    sources.forEach(src => {
+      const im = new Image();
+      im.decoding = 'async';
+      im.loading = 'eager';
+      im.src = src;
+    });
+  }
+  // Kick off preload shortly after load to avoid competing with critical content
+  window.addEventListener('load', ()=>{ setTimeout(preloadQR, 200); });
   const FILENAME = 'qr-majito.png';
   let currentUrl = REMOTE_URL;
 
@@ -458,15 +506,17 @@ if (motionOK && window.innerWidth >= 768) {
 
   function openModal(){
     // Try remote first; if it fails, fallback to local
-    img.removeAttribute('src');
+    // If image is already cached (preloaded), just set remote; fallback only on error
     currentUrl = REMOTE_URL;
     img.onerror = () => {
-      // fallback to local file if remote fails to load
       currentUrl = LOCAL_URL;
-      img.onerror = null; // avoid loops
+      img.onerror = null;
       img.src = LOCAL_URL;
     };
-    img.src = REMOTE_URL;
+    // Avoid flicker: keep previous src if already loaded remote
+    if (img.src !== REMOTE_URL && img.src !== LOCAL_URL) {
+      img.src = REMOTE_URL;
+    }
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
     hasDownloaded = false;
