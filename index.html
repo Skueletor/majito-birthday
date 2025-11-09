@@ -2,41 +2,47 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Majito's Birthday</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Majito's Birthday 🎉</title>
 
-    <!-- Fonts -->
+    <!-- Performance & SEO meta tags -->
+    <meta name="description" content="Celebra los 24 años de Majito - Una tarde con comida, traguitos y risas. 16 de noviembre, 2:30 p.m. ¡No te lo pierdas! 🎉" />
+    <meta name="theme-color" content="#ffe7ef" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Majito's Birthday" />
+    
+    <!-- Preconnect to external resources for faster loading -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://db.onlinewebfonts.com" />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="preconnect" href="https://unpkg.com" />
+    
+    <!-- Preload critical font -->
+    <link rel="preload" href="assets/fonts/Railey.woff2" as="font" type="font/woff2" crossorigin />
+    
+    <!-- Fonts - optimized loading -->
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Raleway:wght@300;500;700&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet" />
-  <!-- Railey from OnlineWebFonts -->
-  <link href="https://db.onlinewebfonts.com/t/9c080e9c6cab37228b6efdfd9fb6e2f9.woff2" rel="stylesheet">
+    <link href="https://db.onlinewebfonts.com/t/9c080e9c6cab37228b6efdfd9fb6e2f9.woff2" rel="stylesheet" />
 
-    <!-- Styles -->
+    <!-- Critical CSS -->
     <link rel="stylesheet" href="./styles.css" />
-  <!-- Preload Railey font if available -->
-  <link rel="preload" href="assets/fonts/Railey.woff2" as="font" type="font/woff2" crossorigin>
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-
-    <!-- Meta -->
-  <meta name="description" content="Majito's 24th birthday party invitation." />
-  <meta name="theme-color" content="#ffe7ef" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    
+    <!-- Leaflet CSS - deferred for non-critical map -->
+    <link rel="preload" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /></noscript>
   </head>
   <body>
     <div id="app">
       <!-- HERO -->
       <header class="section hero" id="inicio">
         <div class="hero__bg">
-          <!-- Pastel blobs as watercolor vibe; replace later with real floral PNGs -->
           <div class="blob blob--tl" aria-hidden="true"></div>
           <div class="blob blob--tr" aria-hidden="true"></div>
           <div class="blob blob--bl" aria-hidden="true"></div>
           <div class="blob blob--br" aria-hidden="true"></div>
-
-          <!-- Decorative flowers are injected via JS using SVGs in assets/flowers -->
         </div>
 
         <div class="container hero__content">
@@ -75,19 +81,22 @@
             <h3>¿Qué llevar?</h3>
             <p>
               <strong>La mejor actitud</strong><br/>
-              <a>Y si no te gusta el vodka llevá algún drink de tu preferencia 🫶🏼</a>
-              <a><br><strong>OJO</strong><br>No olvides compartir😜</a>
+              Y si no te gusta el vodka llevá algún drink de tu preferencia 🫶🏼
+              <br /><strong>OJO</strong><br />
+              No olvides compartir😜
             </p>
           </div>
           <div class="card highlight">
             <h3>Dress Code</h3>
-            <p><strong>Girls</strong> — Coquette White 🤍✨
-                <br /><strong>Hombres</strong> — White Top + Denim/Beige</p>
+            <p>
+              <strong>Girls</strong> — Coquette White 🤍✨<br />
+              <strong>Hombres</strong> — White Top + Denim/Beige
+            </p>
           </div>
         </div>
       </section>
 
-      <!-- MAPA (Leaflet) -->
+      <!-- MAPA (Leaflet) - Lazy-loaded -->
       <section class="section panel panel--cream" id="ubicacion">
         <div class="container">
           <h2 class="message__title" style="text-align:center; margin-bottom:1rem">Ubicación</h2>
@@ -100,7 +109,7 @@
             data-lng="-63.2262592306885"
           ></div>
           <div class="map-actions">
-            <a class="btn" id="openGmaps" target="_blank" rel="noreferrer noopener">Abrir en Google Maps</a>
+            <a class="btn" id="openGmaps" target="_blank" rel="noreferrer noopener" href="https://www.google.com/maps/search/?api=1&query=-17.863172281338997,-63.2262592306885">Abrir en Google Maps</a>
           </div>
         </div>
       </section>
@@ -111,7 +120,7 @@
           <h2 class="rsvp__title">¿Vienes?</h2>
           <p class="rsvp__text">Toca el botón para confirmar tu asistencia.</p>
           <div class="cta">
-            <a class="btn btn--primary btn--lg" target="_blank" href="https://wa.link/ccwp4a">Confirmar por WhatsApp</a>
+            <a class="btn btn--primary btn--lg" target="_blank" rel="noopener" href="https://wa.link/ccwp4a">Confirmar por WhatsApp</a>
           </div>
           <small class="muted">Reemplaza el número en el enlace cuando lo tengas.</small>
           <div class="gift">
@@ -127,22 +136,12 @@
       </footer>
     </div>
 
-    <!-- Libraries -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@latest/dist/lenis.min.js"></script>
-    <!-- Leaflet JS -->
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-
-    <!-- App script -->
-  <script defer src="./script.js"></script>
-
     <!-- Gift Modal -->
     <div class="modal" id="giftModal" aria-hidden="true" role="dialog" aria-modal="false">
       <div class="modal__backdrop" data-close></div>
       <div class="modal__content" role="document">
-        <button class="modal__close-x" type="button" aria-label="Cerrar" title="Cerrar" hidden>&times;</button>
-        <img id="giftImg" src="" alt="QR de pago" loading="lazy" />
+        <button class="modal__close-x" type="button" aria-label="Cerrar" title="Cerrar">&times;</button>
+        <img id="giftImg" src="" alt="QR de pago" loading="lazy" width="300" height="300" />
         <div class="modal__message">Para que no te estreses pensando qué regalar, te dejo mi QR 🎁</div>
         <div class="modal__actions">
           <button class="btn" id="giftDownload">Descargar QR</button>
@@ -150,5 +149,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Libraries - Deferred loading for better performance -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@latest/dist/lenis.min.js"></script>
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <!-- App script - Optimized -->
+    <script defer src="./script.js"></script>
   </body>
 </html>
