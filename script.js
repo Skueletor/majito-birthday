@@ -217,277 +217,543 @@ function initDetails() {
   });
 }
 
-// ===== LAZY-LOADED FLOWERS WITH INTERSECTION OBSERVER =====
-let flowersInitialized = false;
+// ===== FLOWER SYSTEM V3: EAGER, DENSE, PERSISTENT =====
+// Design Goals:
+// 1. Background renders eagerly on first paint (no scroll dependency) and persists per session.
+// 2. Re-uses the available 26 assets to reach ~50 placements with subtle variation (positions/sizes) while avoiding overlap.
+// 3. DOM nodes are created only once; no rebuilds on scroll / intersection / resize.
+// 4. Layout is cached in sessionStorage to avoid recalculation on soft navigations / reload within session.
+// 5. Lightweight spatial hashing for O(k) collision checks instead of O(n^2).
+// 6. Graceful degradation: if a flower can't be placed after MAX_TRIES, it's skipped (never force overlapping).
+// 7. Responsive sizing tiers at generation time; sizes remain stable (no jitter) during resize.
+// 8. Zero external dependencies (GSAP optional for gentle idle motion).
 
-function initSectionFlowers() {
-  if (flowersInitialized) return;
-  flowersInitialized = true;
-  
-  // Config
-  const BREAKPOINT = 640;
-  const IMAGES_TOTAL = 26;
-  const MAX_TRIES = 25;
-  const SAFE_MARGIN = 8;
-  const SPACING_RATIO = 0.18;
-  const AVOID_PAD = 8;
-  
-  // Reduce flower count on mobile for better performance
-  const mobileFactor = isMobile() ? 0.6 : 1;
-  
+const FlowerLayout = (function(){
+  const BASE_IMAGE_COUNT = 26;
+  const LAYOUT_VERSION = 3;
+  const TOTAL_BY_VIEWPORT = { xs: 36, sm: 40, md: 46, lg: 50 };
+  const STORAGE_KEY = 'flowerLayoutV3';
+  const MAX_TRIES = 60;          // Extra attempts thanks to spatial hash efficiency
+  const SAFE_MARGIN = 8;         // Padding from section edges
+  const AVOID_PAD = 12;          // Expansion padding around content boxes
+  const SPACING_SCALE = 0.12;    // Multiplier to turn size into buffer radius
+  const HASH_CELL = 120;         // Spatial hash cell size (roughly medium flower width)
+
+  // Sections registry (counts computed dynamically by area)
   const SECTIONS = [
-    { selector: '.hero', desktop: Math.floor(10 * mobileFactor), mobile: Math.floor(6 * mobileFactor), size: [180, 260] },
-    { selector: '#mensaje', desktop: Math.floor(6 * mobileFactor), mobile: Math.floor(4 * mobileFactor), size: [150, 210] },
-    { selector: '#detalles', desktop: Math.floor(11 * mobileFactor), mobile: Math.floor(6 * mobileFactor), size: [140, 220] },
-    { selector: '#ubicacion', desktop: Math.floor(5 * mobileFactor), mobile: Math.floor(3 * mobileFactor), size: [140, 180] },
-    { selector: '#rsvp', desktop: Math.floor(5 * mobileFactor), mobile: Math.floor(3 * mobileFactor), size: [140, 180] },
+    { selector: '.hero', key: 'hero' },
+    { selector: '#mensaje', key: 'mensaje' },
+    { selector: '#detalles', key: 'detalles' },
+    { selector: '#ubicacion', key: 'ubic' },
+    { selector: '#rsvp', key: 'rsvp' },
   ];
-  
-  const isMobileView = () => window.matchMedia(`(max-width:${BREAKPOINT}px)`).matches;
-  const rand = (a, b) => Math.random() * (b - a) + a;
-  const rint = (a, b) => Math.floor(rand(a, b + 1));
-  const shuffle = (arr) => arr.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(p => p[1]);
-  
-  function toLocal(rect, rootRect) {
-    return {
-      left: rect.left - rootRect.left,
-      top: rect.top - rootRect.top,
-      width: rect.width,
-      height: rect.height,
-      right: rect.right - rootRect.left,
-      bottom: rect.bottom - rootRect.top
-    };
+
+  function minPerSection(){
+    const cat = viewportCategory();
+    if (cat === 'xs') return 4;
+    if (cat === 'sm') return 6;
+    if (cat === 'md') return 8;
+    return 9; // lg
   }
-  
-  function intersects(a, b) {
-    return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+
+  function totalForViewport(cat = viewportCategory()){
+    return TOTAL_BY_VIEWPORT[cat] || 44;
   }
-  
-  function expand(rect, pad) {
-    return {
-      left: rect.left - pad,
-      top: rect.top - pad,
-      width: rect.width + pad * 2,
-      height: rect.height + pad * 2,
-      right: rect.right + pad,
-      bottom: rect.bottom + pad
-    };
+
+  // Compute how many flowers per section based on visible area
+  function computeDistribution(total){
+    const minCount = minPerSection();
+    const items = [];
+    let areaSum = 0;
+    SECTIONS.forEach(s => {
+      const el = document.querySelector(s.selector);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const area = Math.max(1, Math.floor(r.width * r.height));
+      items.push({ ...s, area, el, count: 0, frac: 0 });
+      areaSum += area;
+    });
+    if (!items.length) return [];
+
+    // Initial proportional assignment
+    items.forEach(i => {
+      const raw = (i.area / areaSum) * total;
+      i.count = Math.floor(raw);
+      i.frac = raw - i.count;
+    });
+    // Enforce minimums
+    let assigned = items.reduce((a,i)=>a+i.count,0);
+    for (const i of items){
+      if (i.count < minCount){
+        const diff = minCount - i.count;
+        i.count = minCount;
+        assigned += diff;
+      }
+    }
+    // Reconcile to exact total by adjusting counts using fractional remainders
+    if (assigned < total){
+      // Give extras to biggest fractional parts first
+      const need = total - assigned;
+      items.sort((a,b)=>b.frac - a.frac);
+      for (let k=0; k<need; k++) items[k % items.length].count++;
+    } else if (assigned > total){
+      // Remove from largest counts with smallest fractional parts first
+      let over = assigned - total;
+      items.sort((a,b)=> (b.count - a.count) || (a.frac - b.frac));
+      for (const i of items){
+        if (!over) break;
+        const reducible = Math.max(0, i.count - minCount);
+        if (reducible > 0){
+          const take = Math.min(reducible, over);
+          i.count -= take;
+          over -= take;
+        }
+      }
+    }
+    // Restore original section order for deterministic processing
+    items.sort((a,b)=> SECTIONS.findIndex(s=>s.selector===a.selector) - SECTIONS.findIndex(s=>s.selector===b.selector));
+    return items;
   }
-  
-  function ensureBgContainer(section) {
+
+  // Size tiers per viewport category
+  function viewportCategory(){
+    const w = window.innerWidth;
+    if (w < 480) return 'xs';
+    if (w < 768) return 'sm';
+    if (w < 1024) return 'md';
+    return 'lg';
+  }
+  const SIZE_RULES = {
+    xs: { small:[80,110],   med:[110,140],  large:[140,160] },
+    sm: { small:[90,130],   med:[130,170],  large:[170,200] },
+    md: { small:[140,190],  med:[190,250],  large:[250,290] },
+    lg: { small:[150,210],  med:[210,260],  large:[260,320] },
+  };
+  // Probability distribution for size tiers (cumulative logic when rolling)
+  const SIZE_DIST = [
+    { tier:'small', p:0.60 },
+    { tier:'med',   p:0.85 }, // 0.25 slice
+    { tier:'large', p:1.00 }, // 0.15 slice
+  ];
+
+  function pickTier(){
+    const r = Math.random();
+    return SIZE_DIST.find(d => r <= d.p).tier;
+  }
+  function rand(a,b){ return Math.random()*(b-a)+a; }
+  function rint(a,b){ return Math.floor(rand(a,b+1)); }
+  function shuffle(arr){ return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(p=>p[1]); }
+
+  function getContentAvoidRects(sectionEl, sectionRect){
+    const selectors = ['.hero__content', '.container', '.message', '.rsvp'];
+    const zones = [];
+    selectors.forEach(sel => {
+      const el = sectionEl.querySelector(sel);
+      if (el){
+        const r = el.getBoundingClientRect();
+        zones.push(expandRect(toLocalRect(r, sectionRect), AVOID_PAD));
+      }
+    });
+    return zones;
+  }
+  function toLocalRect(rect, root){
+    return { left: rect.left-root.left, top: rect.top-root.top, width: rect.width, height: rect.height, right: rect.right-root.left, bottom: rect.bottom-root.top };
+  }
+  function expandRect(r,p){ return { left:r.left-p, top:r.top-p, width:r.width+2*p, height:r.height+2*p, right:r.right+p, bottom:r.bottom+p }; }
+  function intersects(a,b){ return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom); }
+
+  // Spatial hash structure
+  function Hash(){ this.map = new Map(); }
+  Hash.prototype.key = function(x,y){ return (Math.floor(x/HASH_CELL))+','+(Math.floor(y/HASH_CELL)); };
+  Hash.prototype.insert = function(box, payload){
+    const minX = Math.floor(box.left / HASH_CELL);
+    const maxX = Math.floor(box.right / HASH_CELL);
+    const minY = Math.floor(box.top / HASH_CELL);
+    const maxY = Math.floor(box.bottom / HASH_CELL);
+    for (let gx=minX; gx<=maxX; gx++){
+      for (let gy=minY; gy<=maxY; gy++){
+        const k = gx+','+gy;
+        if (!this.map.has(k)) this.map.set(k, []);
+        this.map.get(k).push(payload);
+      }
+    }
+  };
+  Hash.prototype.query = function(box){
+    const results = [];
+    const seen = new Set();
+    const minX = Math.floor(box.left / HASH_CELL);
+    const maxX = Math.floor(box.right / HASH_CELL);
+    const minY = Math.floor(box.top / HASH_CELL);
+    const maxY = Math.floor(box.bottom / HASH_CELL);
+    for (let gx=minX; gx<=maxX; gx++){
+      for (let gy=minY; gy<=maxY; gy++){
+        const k = gx+','+gy;
+        const bucket = this.map.get(k);
+        if (bucket){
+          for (const item of bucket){
+            if (!seen.has(item.id)){
+              seen.add(item.id);
+              results.push(item);
+            }
+          }
+        }
+      }
+    }
+    return results;
+  };
+
+  function ensureBgContainer(section){
     let box = section.querySelector(':scope > .flowers-bg');
-    if (!box) {
+    if (!box){
       box = document.createElement('div');
       box.className = 'flowers-bg';
       section.insertBefore(box, section.firstChild);
-    } else {
-      box.innerHTML = '';
     }
     return box;
   }
-  
-  function buildSection(entry) {
-    const sec = document.querySelector(entry.selector);
-    if (!sec) return;
-    
-    const box = ensureBgContainer(sec);
-    const sRect = sec.getBoundingClientRect();
-    const W = Math.max(1, Math.floor(sRect.width));
-    const H = Math.max(1, Math.floor(sRect.height));
-    if (W < 40 || H < 40) return;
-    
-    const count = isMobileView() ? entry.mobile : entry.desktop;
-    const [minPx, maxPx] = entry.size;
-    
-    // Special hero placement with fallback
-    if (entry.selector === '.hero') {
-      const centerX = W / 2;
-      const centerY = H / 2;
-      const R = Math.min(W, H) * 0.35;
-      const borderW = W * 0.12;
-      
-      const heroContent = sec.querySelector('.hero__content');
-      let avoidZones = [];
-      if (heroContent) {
-        const hRect = heroContent.getBoundingClientRect();
-        avoidZones.push(expand(toLocal(hRect, sRect), AVOID_PAD));
+
+  function generateLayout(){
+    const cat = viewportCategory();
+    const target = totalForViewport(cat);
+    const sizeRules = SIZE_RULES[cat];
+    const slots = shuffle(Array.from({ length: target }, (_, i) => ({
+      uid: i + 1,
+      image: (i % BASE_IMAGE_COUNT) + 1,
+      reuseIndex: Math.floor(i / BASE_IMAGE_COUNT),
+    })));
+    const queue = [...slots];
+    const layout = {
+      meta: {
+        version: LAYOUT_VERSION,
+        cat,
+        base: BASE_IMAGE_COUNT,
+        target,
+        placed: 0,
+      },
+      flowers: [],
+    };
+
+    // Pre-compute how many per section and assemble placement structures
+    const dist = computeDistribution(target);
+    const sections = dist.map((cfg) => {
+      const sectionEl = cfg.el || document.querySelector(cfg.selector);
+      if (!sectionEl) return null;
+      const rect = sectionEl.getBoundingClientRect();
+      return {
+        cfg,
+        el: sectionEl,
+        rect,
+        W: Math.max(10, rect.width),
+        H: Math.max(10, rect.height),
+        avoid: getContentAvoidRects(sectionEl, rect),
+        hash: new Hash(),
+        placed: [],
+        need: Math.min(cfg.count, target),
+      };
+    }).filter(Boolean);
+
+    // Helper to attempt placing one image into a section with tunables
+    function tryPlaceIn(sec, slot, scale = 1, bufferScale = 1) {
+      const tier = pickTier();
+      const [minS, maxS] = sizeRules[tier];
+      const size = Math.max(48, Math.floor(rint(minS, maxS) * scale));
+      const buffer = size * (SPACING_SCALE * bufferScale);
+      for (let t = 0; t < MAX_TRIES; t++) {
+        const maxX = Math.max(SAFE_MARGIN, sec.W - size - SAFE_MARGIN);
+        const maxY = Math.max(SAFE_MARGIN, sec.H - size - SAFE_MARGIN);
+        const x = rand(SAFE_MARGIN, maxX);
+        const y = rand(SAFE_MARGIN, maxY);
+        const box = { left: x, top: y, right: x + size, bottom: y + size };
+        // Avoid content
+        let bad = false;
+        for (const a of sec.avoid) {
+          if (intersects(box, a)) {
+            bad = true;
+            break;
+          }
+        }
+        if (bad) continue;
+        // Avoid other flowers in this section
+        const near = sec.hash.query({
+          left: box.left - buffer,
+          top: box.top - buffer,
+          right: box.right + buffer,
+          bottom: box.bottom + buffer,
+        });
+        for (const n of near) {
+          const expanded = {
+            left: n.x - buffer,
+            top: n.y - buffer,
+            right: n.x + n.size + buffer,
+            bottom: n.y + n.size + buffer,
+          };
+          if (intersects(box, expanded)) {
+            bad = true;
+            break;
+          }
+        }
+        if (bad) continue;
+        const final = {
+          uid: slot.uid,
+          image: slot.image,
+          reuseIndex: slot.reuseIndex,
+          section: sec.cfg.key,
+          selector: sec.cfg.selector,
+          x,
+          y,
+          size,
+          tier,
+        };
+        sec.placed.push(final);
+        sec.hash.insert({ left: box.left, top: box.top, right: box.right, bottom: box.bottom }, { id: slot.uid, x, y, size });
+        return final;
       }
-      
-      const indices = shuffle([...Array(IMAGES_TOTAL)].map((_, i) => i + 1));
-      let placed = [];
-      
-      for (let i = 0; i < count; i++) {
-        const size = rint(minPx, maxPx);
-        const spacing = size * SPACING_RATIO;
-        let found = false;
-        
-        for (let tries = 0; tries < MAX_TRIES; tries++) {
-          const inCircle = Math.random() < 0.6;
-          let x, y;
-          
-          if (inCircle) {
-            const angle = rand(0, Math.PI * 2);
-            const r = rand(R * 0.3, R);
-            x = centerX + r * Math.cos(angle);
-            y = centerY + r * Math.sin(angle);
-          } else {
-            const edge = rint(0, 3);
-            switch (edge) {
-              case 0: x = rand(SAFE_MARGIN, borderW); y = rand(SAFE_MARGIN, H - SAFE_MARGIN); break;
-              case 1: x = rand(W - borderW, W - SAFE_MARGIN); y = rand(SAFE_MARGIN, H - SAFE_MARGIN); break;
-              case 2: x = rand(SAFE_MARGIN, W - SAFE_MARGIN); y = rand(SAFE_MARGIN, borderW); break;
-              case 3: x = rand(SAFE_MARGIN, W - SAFE_MARGIN); y = rand(H - borderW, H - SAFE_MARGIN); break;
-            }
-          }
-          
-          const candidate = { left: x, top: y, width: size, height: size, right: x + size, bottom: y + size };
-          
-          if (candidate.left < SAFE_MARGIN || candidate.right > W - SAFE_MARGIN ||
-              candidate.top < SAFE_MARGIN || candidate.bottom > H - SAFE_MARGIN) continue;
-          
-          let collision = false;
-          for (const z of avoidZones) {
-            if (intersects(candidate, z)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          collision = false;
-          for (const p of placed) {
-            const bufferBox = expand(p, spacing);
-            if (intersects(candidate, bufferBox)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          found = true;
-          placed.push(candidate);
-          
-          const img = new Image();
-          img.loading = 'lazy'; // Native lazy loading
-          img.className = 'flower ' + (Math.random() < 0.5 ? 'flower--soft' : 'flower--bold');
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;`;
-          img.alt = '';
-          box.appendChild(img);
-          break;
+      return null;
+    }
+
+    function fillSection(sec, targetCount, scaleOptions, guardFactor = 4) {
+      if (!targetCount) return;
+      let attempts = 0;
+      const cap = Math.max(targetCount * MAX_TRIES, target * guardFactor);
+      while (sec.placed.length < targetCount && queue.length && attempts < cap) {
+        const slot = queue.shift();
+        let placed = null;
+        for (const [scale, bufferScale] of scaleOptions) {
+          placed = tryPlaceIn(sec, slot, scale, bufferScale);
+          if (placed) break;
         }
-        
-        if (!found) {
-          const x = rand(SAFE_MARGIN, W - size - SAFE_MARGIN);
-          const y = rand(SAFE_MARGIN, H - size - SAFE_MARGIN);
-          const img = new Image();
-          img.loading = 'lazy';
-          img.className = 'flower flower--soft';
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;opacity:0.25;`;
-          img.alt = '';
-          box.appendChild(img);
+        if (placed) {
+          layout.flowers.push(placed);
+        } else {
+          queue.push(slot);
         }
-      }
-    } else {
-      // Other sections: simpler placement
-      const content = sec.querySelector('.container, .message, .rsvp');
-      let avoidZones = [];
-      if (content) {
-        const cRect = content.getBoundingClientRect();
-        avoidZones.push(expand(toLocal(cRect, sRect), AVOID_PAD));
-      }
-      
-      const indices = shuffle([...Array(IMAGES_TOTAL)].map((_, i) => i + 1));
-      let placed = [];
-      
-      for (let i = 0; i < count; i++) {
-        const size = rint(minPx, maxPx);
-        const spacing = size * SPACING_RATIO;
-        let found = false;
-        
-        for (let tries = 0; tries < MAX_TRIES; tries++) {
-          const x = rand(SAFE_MARGIN, W - size - SAFE_MARGIN);
-          const y = rand(SAFE_MARGIN, H - size - SAFE_MARGIN);
-          const candidate = { left: x, top: y, width: size, height: size, right: x + size, bottom: y + size };
-          
-          let collision = false;
-          for (const z of avoidZones) {
-            if (intersects(candidate, z)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          collision = false;
-          for (const p of placed) {
-            const bufferBox = expand(p, spacing);
-            if (intersects(candidate, bufferBox)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          found = true;
-          placed.push(candidate);
-          
-          const img = new Image();
-          img.loading = 'lazy';
-          img.className = 'flower ' + (Math.random() < 0.5 ? 'flower--soft' : 'flower--bold');
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;`;
-          img.alt = '';
-          box.appendChild(img);
-          break;
-        }
-        
-        if (!found) {
-          const x = rand(SAFE_MARGIN, W - size - SAFE_MARGIN);
-          const y = rand(SAFE_MARGIN, H - size - SAFE_MARGIN);
-          const img = new Image();
-          img.loading = 'lazy';
-          img.className = 'flower flower--soft';
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;opacity:0.25;`;
-          img.alt = '';
-          box.appendChild(img);
-        }
+        attempts++;
       }
     }
-  }
-  
-  function buildAll() {
-    SECTIONS.forEach(entry => buildSection(entry));
-  }
-  
-  buildAll();
-  
-  // Debounced rebuild on resize
-  const debouncedRebuild = debounce(buildAll, 300);
-  window.addEventListener('resize', debouncedRebuild);
-}
 
-// Lazy-load flowers using Intersection Observer
-function setupFlowersLazyLoad() {
-  if (!('IntersectionObserver' in window)) {
-    // Fallback: init immediately
-    initSectionFlowers();
-    return;
-  }
-  
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        initSectionFlowers();
-        observer.disconnect();
-      }
+    // Primary pass using intended distribution
+    sections.forEach((sec) => {
+      fillSection(sec, sec.need, [
+        [1, 1],
+        [0.92, 0.95],
+      ]);
     });
-  }, { rootMargin: '100px' });
-  
-  if (DOM.hero) observer.observe(DOM.hero);
-}
+
+    // Ensure minimum baseline per section with progressively smaller tiers
+    const minCount = minPerSection();
+    const byShort = [...sections].sort((a, b) => (a.placed.length - Math.max(minCount, a.need)) - (b.placed.length - Math.max(minCount, b.need)));
+    byShort.forEach((sec) => {
+      const targetCount = Math.max(minCount, Math.min(sec.need, target));
+      if (sec.placed.length >= targetCount) return;
+      fillSection(sec, targetCount, [
+        [0.88, 0.92],
+        [0.78, 0.85],
+        [0.68, 0.8],
+      ], 6);
+    });
+
+    // Distribute any leftovers into the largest sections for extra richness
+    if (queue.length && layout.flowers.length < target) {
+      const sorted = [...sections].sort((a, b) => b.W * b.H - a.W * a.H);
+      let guard = target * 8;
+      let idx = 0;
+      while (queue.length && layout.flowers.length < target && guard-- > 0) {
+        const sec = sorted[idx % sorted.length];
+        const slot = queue.shift();
+        const placed = tryPlaceIn(sec, slot, 0.7, 0.82) || tryPlaceIn(sec, slot, 0.6, 0.75) || tryPlaceIn(sec, slot, 0.52, 0.7);
+        if (placed) {
+          layout.flowers.push(placed);
+        } else {
+          queue.push(slot);
+        }
+        idx++;
+      }
+    }
+
+    layout.meta.placed = layout.flowers.length;
+    return layout;
+  }
+
+  function restoreLayout(){
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.flowers)) return null;
+      const currentCat = viewportCategory();
+      if (!parsed.meta || parsed.meta.version !== LAYOUT_VERSION) return null;
+      if (parsed.meta.base !== BASE_IMAGE_COUNT) return null;
+      if (parsed.meta.cat !== currentCat) return null;
+      const expectedTarget = totalForViewport(currentCat);
+      if (parsed.meta.target !== expectedTarget) return null;
+      if (parsed.meta.placed !== parsed.flowers.length) return null;
+      const minimumViable = Math.max(minPerSection() * SECTIONS.length, Math.floor(expectedTarget * 0.65));
+      if (parsed.flowers.length < minimumViable) return null;
+      return parsed;
+    } catch(e){ return null; }
+  }
+
+  function persistLayout(layout){
+    try {
+      if (layout && layout.meta) {
+        layout.meta.placed = Array.isArray(layout.flowers) ? layout.flowers.length : 0;
+      }
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+    } catch(e) {}
+  }
+
+  function mountLayout(layout){
+    const bySection = new Map();
+    layout.flowers.forEach(f => {
+      if (!bySection.has(f.selector)) bySection.set(f.selector, []);
+      bySection.get(f.selector).push(f);
+    });
+    bySection.forEach((flowers, selector) => {
+      const sectionEl = document.querySelector(selector);
+      if (!sectionEl) return;
+      const box = ensureBgContainer(sectionEl);
+      // Important: do NOT wipe existing if already mounted (avoid duplicates)
+      if (box.dataset.mounted === '1') return;
+      flowers.forEach(f => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.loading = 'lazy';
+        img.alt = '';
+        img.setAttribute('aria-hidden', 'true');
+        img.className = 'flower ' + (Math.random() < 0.5 ? 'flower--soft' : 'flower--bold');
+        // Prefer WebP; fall back to PNG if not present
+        img.src = `assets/flowers/${f.image}.webp`;
+        img.onerror = function(){ this.onerror=null; this.src = `assets/flowers/png/${f.image}.png`; };
+        img.style.left = f.x + 'px';
+        img.style.top = f.y + 'px';
+        img.style.width = f.size + 'px';
+        img.style.height = f.size + 'px';
+        img.dataset.flowerUid = f.uid;
+        img.dataset.flowerReuse = f.reuseIndex;
+        img.dataset.flowerImage = f.image;
+        box.appendChild(img);
+      });
+      box.dataset.mounted = '1';
+      // Add gentle idle motion after mount
+      enableIdleMotion(box);
+    });
+  }
+
+  // Gentle idle motion using GSAP; transform-only for GPU acceleration
+  function enableIdleMotion(container){
+    if (typeof gsap === 'undefined') return;
+    const els = container.querySelectorAll('.flower');
+    els.forEach((el, i) => {
+      const amp = isMobile() ? 4 : 7; // px
+      const dx = (Math.random()*amp*2 - amp);
+      const dy = (Math.random()*amp*2 - amp);
+      const dur = (isMobile()? 6:9) + Math.random()*3;
+      gsap.to(el, {
+        x: dx,
+        y: dy,
+        duration: dur,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      });
+      // Subtle breathing scale
+      gsap.to(el, {
+        scale: 1 + (isMobile()? 0.01 : 0.015),
+        duration: dur*1.2,
+        ease: 'sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      });
+    });
+  }
+
+  // Animate existing nodes to a new layout (for major resize/orientation change)
+  function animateToLayout(newLayout){
+    if (typeof gsap === 'undefined') return mountFresh(newLayout);
+    const idToTarget = new Map();
+    document.querySelectorAll('.flowers-bg .flower').forEach(el => {
+      const uid = parseInt(el.dataset.flowerUid, 10);
+      if (!Number.isNaN(uid)) idToTarget.set(uid, el);
+    });
+    if (idToTarget.size !== newLayout.flowers.length) {
+      mountFresh(newLayout);
+      return;
+    }
+    const tl = gsap.timeline({ defaults: { ease: 'power2.inOut', duration: 0.8 } });
+    let missing = false;
+    newLayout.flowers.forEach(f => {
+      const el = idToTarget.get(f.uid);
+      if (!el) { missing = true; return; }
+      el.dataset.flowerReuse = f.reuseIndex;
+      el.dataset.flowerImage = f.image;
+      tl.to(el, {
+        left: f.x,
+        top: f.y,
+        width: f.size,
+        height: f.size,
+      }, 0);
+    });
+    if (missing) {
+      mountFresh(newLayout);
+      return;
+    }
+    tl.eventCallback('onComplete', () => {
+      // Refresh idle motion (optional)
+      document.querySelectorAll('.flowers-bg').forEach(enableIdleMotion);
+    });
+  }
+
+  function mountFresh(layout){
+    // Clear any previous flowers-bg to avoid mixed states
+    document.querySelectorAll('.flowers-bg').forEach(box => { box.dataset.mounted=''; box.innerHTML=''; });
+    mountLayout(layout);
+  }
+
+  function init(){
+    // Eagerly hydrate the cached layout (or generate a fresh one) so flowers exist before any scroll.
+    let layout = restoreLayout();
+    if (!layout){
+      layout = generateLayout();
+      persistLayout(layout);
+    }
+    mountLayout(layout);
+    bindRelayout();
+  }
+
+  // Relayout binding: major resize / orientation change
+  function bindRelayout(){
+    let lastW = window.innerWidth;
+    let lastH = window.innerHeight;
+    let pending = false;
+    function shouldRelayout(){
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const dw = Math.abs(w - lastW);
+      const dh = Math.abs(h - lastH);
+      // Trigger if width changes > 15% or orientation flip (portrait/landscape)
+      const orientationChanged = (w > h && lastW <= lastH) || (w <= h && lastW > lastH);
+      return orientationChanged || (dw / Math.max(lastW,1) > 0.15) || (dh / Math.max(lastH,1) > 0.25);
+    }
+    function handle(){
+      if (!shouldRelayout()) return;
+      if (pending) return;
+      pending = true;
+      setTimeout(() => {
+        lastW = window.innerWidth;
+        lastH = window.innerHeight;
+        pending = false;
+        // Generate new layout, animate existing nodes
+        const fresh = generateLayout();
+        persistLayout(fresh);
+        animateToLayout(fresh); // tween to new positions
+      }, 180); // slight debounce
+    }
+    window.addEventListener('resize', handle);
+    window.addEventListener('orientationchange', handle);
+  }
+
+  return { init };
+})();
 
 // ===== FLOATING PETALS (Reduced count on mobile) =====
 function initPetals() {
@@ -724,8 +990,9 @@ function initGiftModal() {
   const modal = DOM.giftModal;
   const img = DOM.giftImg;
   const downloadBtn = document.getElementById('giftDownload');
+  const modalContent = modal ? modal.querySelector('.modal__content') : null;
   
-  if (!open || !modal || !img || !downloadBtn) return;
+  if (!open || !modal || !img || !downloadBtn || !modalContent) return;
   
   const REMOTE_URL = 'https://i.ibb.co/yFFc2XYW/qr-code.png';
   const LOCAL_URL = 'assets/qr-code.png';
@@ -735,6 +1002,7 @@ function initGiftModal() {
   let hasDownloaded = false;
   let guardShown = false;
   let guardImgEl = null;
+  let guardResizeHandler = null;
   
   function resetGuard() {
     if (guardImgEl) {
@@ -743,6 +1011,11 @@ function initGiftModal() {
     }
     guardShown = false;
     modal.classList.remove('modal--guarded');
+    if (guardResizeHandler) {
+      window.removeEventListener('resize', guardResizeHandler);
+      window.removeEventListener('orientationchange', guardResizeHandler);
+      guardResizeHandler = null;
+    }
   }
   
   function openModal() {
@@ -780,18 +1053,42 @@ function initGiftModal() {
       if (!hasDownloaded && !guardShown) {
         guardShown = true;
         modal.classList.add('modal--guarded');
-        
+
         guardImgEl = document.createElement('img');
         guardImgEl.src = 'https://i.ibb.co/PGbW14yD/sticker.png';
         guardImgEl.className = 'sticker-guard';
         guardImgEl.alt = '';
-        guardImgEl.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;';
-        
-        const actions = modal.querySelector('.modal__actions');
-        if (actions) {
-          actions.style.position = 'relative';
-          actions.appendChild(guardImgEl);
+        guardImgEl.setAttribute('aria-hidden', 'true');
+
+        modalContent.appendChild(guardImgEl);
+
+        const placeGuard = () => {
+          if (!guardImgEl) return;
+          const btnRect = closeBtn.getBoundingClientRect();
+          const contentRect = modalContent.getBoundingClientRect();
+          if (!btnRect.width || !contentRect.width) return;
+          const guardWidth = guardImgEl.offsetWidth || guardImgEl.naturalWidth || 0;
+          const guardHeight = guardImgEl.offsetHeight || guardImgEl.naturalHeight || 0;
+          if (!guardWidth || !guardHeight) {
+            requestAnimationFrame(placeGuard);
+            return;
+          }
+          const idealLeft = btnRect.left - contentRect.left + btnRect.width / 2 - guardWidth / 2;
+          const idealTop = btnRect.top - contentRect.top + btnRect.height / 2 - guardHeight / 2;
+          const maxLeft = contentRect.width - guardWidth;
+          const maxTop = contentRect.height - guardHeight;
+          guardImgEl.style.left = `${Math.max(0, Math.min(maxLeft, idealLeft))}px`;
+          guardImgEl.style.top = `${Math.max(0, Math.min(maxTop, idealTop))}px`;
+        };
+
+        if (!guardImgEl.complete || !guardImgEl.naturalWidth) {
+          guardImgEl.addEventListener('load', () => requestAnimationFrame(placeGuard), { once: true });
         }
+        requestAnimationFrame(placeGuard);
+
+  guardResizeHandler = () => requestAnimationFrame(placeGuard);
+        window.addEventListener('resize', guardResizeHandler, { passive: true });
+        window.addEventListener('orientationchange', guardResizeHandler);
         
         setTimeout(() => {
           if (guardImgEl && guardImgEl.parentNode) {
@@ -850,8 +1147,8 @@ function init() {
   initDetails();
   initAnchors();
   
-  // Lazy-loaded features
-  setupFlowersLazyLoad();
+  // Flower layout (persistent, eager mount)
+  FlowerLayout.init();
   setupMapLazyLoad();
   
   // Deferred non-critical animations

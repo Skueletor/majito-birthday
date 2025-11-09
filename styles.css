@@ -147,8 +147,8 @@ body{
 .flower{
   position:absolute;
   display:block;
-  opacity:.4;
-  filter: drop-shadow(0 10px 20px rgba(0,0,0,.06));
+  opacity:.28; /* Softer presence */
+  filter: blur(6px) brightness(1.05) saturate(.9) drop-shadow(0 8px 18px rgba(0,0,0,.05));
   pointer-events:none;
   will-change: transform;
   mix-blend-mode: multiply;
@@ -156,8 +156,8 @@ body{
 }
 @media (min-width: 768px){
   .flower{
-    opacity:.45;
-    filter: drop-shadow(0 15px 30px rgba(0,0,0,.08));
+    opacity:.32;
+    filter: blur(8px) brightness(1.05) saturate(.85) drop-shadow(0 12px 26px rgba(0,0,0,.06));
   }
 }
 
@@ -171,24 +171,24 @@ body{
 }
 
 .flower--soft{
-  opacity:.3;
-  filter: drop-shadow(0 15px 30px rgba(0,0,0,.05));
+  opacity:.24;
+  filter: blur(7px) brightness(1.06) saturate(.85) drop-shadow(0 10px 22px rgba(0,0,0,.04));
 }
 @media (min-width: 768px){
   .flower--soft{
-    opacity:.35;
-    filter: drop-shadow(0 20px 40px rgba(0,0,0,.06));
+    opacity:.26;
+    filter: blur(9px) brightness(1.06) saturate(.8) drop-shadow(0 16px 34px rgba(0,0,0,.05));
   }
 }
 
 .flower--bold{
-  opacity:.5;
-  filter: drop-shadow(0 10px 20px rgba(0,0,0,.1));
+  opacity:.33;
+  filter: blur(5px) brightness(1.05) saturate(.95) drop-shadow(0 10px 20px rgba(0,0,0,.07));
 }
 @media (min-width: 768px){
   .flower--bold{
-    opacity:.55;
-    filter: drop-shadow(0 12px 24px rgba(0,0,0,.12));
+    opacity:.36;
+    filter: blur(6px) brightness(1.05) saturate(.9) drop-shadow(0 14px 28px rgba(0,0,0,.08));
   }
 }
 
@@ -678,9 +678,11 @@ body{
 /* Sticker that blocks the Close button */
 .sticker-guard{
   position:absolute;
+  left:0;
+  top:0;
   width:clamp(120px, 30vw, 180px);
   height:auto;
-  z-index:3;
+  z-index:120;
   /* raw PNG only: no shadow, no background, no blur */
   filter: none !important;
   box-shadow: none !important;
@@ -689,6 +691,9 @@ body{
   -webkit-backdrop-filter: none !important;
   mix-blend-mode: normal;
   transform-origin:center;
+  pointer-events:auto;
+  user-select:none;
+  touch-action:none;
   animation: guardPop .4s ease both;
 }
 @keyframes guardPop{
