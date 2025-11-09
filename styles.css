@@ -530,6 +530,20 @@ body{
   contain: layout style paint;
 }
 
+/* Flowers V2: drift animation on image child to avoid layout shift */
+.flower{position:absolute; display:block; opacity:.4; pointer-events:none; mix-blend-mode:multiply; filter: drop-shadow(0 10px 20px rgba(0,0,0,.06));}
+.flower__img{display:block; width:100%; height:auto; will-change: transform; transform: translate3d(0,0,0); animation: flowerFloat var(--float-dur, 8s) ease-in-out infinite alternate;}
+@keyframes flowerFloat {
+  from { transform: translate3d(0,0,0); }
+  to   { transform: translate3d(var(--dx, 4px), var(--dy, 6px), 0); }
+}
+@media (min-width: 768px){
+  .flower{opacity:.45; filter: drop-shadow(0 15px 30px rgba(0,0,0,.08));}
+}
+@media (prefers-reduced-motion: reduce){
+  .flower__img{animation:none;}
+}
+
 .map-actions{
   display:flex;
   justify-content:center;

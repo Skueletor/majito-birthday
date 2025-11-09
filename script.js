@@ -217,276 +217,34 @@ function initDetails() {
   });
 }
 
-// ===== LAZY-LOADED FLOWERS WITH INTERSECTION OBSERVER =====
+// ===== FLOWERS V2 (spatial hash, responsive tiers, caching, WebP-first) =====
 let flowersInitialized = false;
-
-function initSectionFlowers() {
-  if (flowersInitialized) return;
-  flowersInitialized = true;
-  
-  // Config
-  const BREAKPOINT = 640;
-  const IMAGES_TOTAL = 26;
-  const MAX_TRIES = 25;
-  const SAFE_MARGIN = 8;
-  const SPACING_RATIO = 0.18;
-  const AVOID_PAD = 8;
-  
-  // Reduce flower count on mobile for better performance
-  const mobileFactor = isMobile() ? 0.6 : 1;
-  
-  const SECTIONS = [
-    { selector: '.hero', desktop: Math.floor(10 * mobileFactor), mobile: Math.floor(6 * mobileFactor), size: [180, 260] },
-    { selector: '#mensaje', desktop: Math.floor(6 * mobileFactor), mobile: Math.floor(4 * mobileFactor), size: [150, 210] },
-    { selector: '#detalles', desktop: Math.floor(11 * mobileFactor), mobile: Math.floor(6 * mobileFactor), size: [140, 220] },
-    { selector: '#ubicacion', desktop: Math.floor(5 * mobileFactor), mobile: Math.floor(3 * mobileFactor), size: [140, 180] },
-    { selector: '#rsvp', desktop: Math.floor(5 * mobileFactor), mobile: Math.floor(3 * mobileFactor), size: [140, 180] },
-  ];
-  
-  const isMobileView = () => window.matchMedia(`(max-width:${BREAKPOINT}px)`).matches;
-  const rand = (a, b) => Math.random() * (b - a) + a;
-  const rint = (a, b) => Math.floor(rand(a, b + 1));
-  const shuffle = (arr) => arr.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(p => p[1]);
-  
-  function toLocal(rect, rootRect) {
-    return {
-      left: rect.left - rootRect.left,
-      top: rect.top - rootRect.top,
-      width: rect.width,
-      height: rect.height,
-      right: rect.right - rootRect.left,
-      bottom: rect.bottom - rootRect.top
-    };
-  }
-  
-  function intersects(a, b) {
-    return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
-  }
-  
-  function expand(rect, pad) {
-    return {
-      left: rect.left - pad,
-      top: rect.top - pad,
-      width: rect.width + pad * 2,
-      height: rect.height + pad * 2,
-      right: rect.right + pad,
-      bottom: rect.bottom + pad
-    };
-  }
-  
-  function ensureBgContainer(section) {
-    let box = section.querySelector(':scope > .flowers-bg');
-    if (!box) {
-      box = document.createElement('div');
-      box.className = 'flowers-bg';
-      section.insertBefore(box, section.firstChild);
-    } else {
-      box.innerHTML = '';
-    }
-    return box;
-  }
-  
-  function buildSection(entry) {
-    const sec = document.querySelector(entry.selector);
-    if (!sec) return;
-    
-    const box = ensureBgContainer(sec);
-    const sRect = sec.getBoundingClientRect();
-    const W = Math.max(1, Math.floor(sRect.width));
-    const H = Math.max(1, Math.floor(sRect.height));
-    if (W < 40 || H < 40) return;
-    
-    const count = isMobileView() ? entry.mobile : entry.desktop;
-    const [minPx, maxPx] = entry.size;
-    
-    // Special hero placement with fallback
-    if (entry.selector === '.hero') {
-      const centerX = W / 2;
-      const centerY = H / 2;
-      const R = Math.min(W, H) * 0.35;
-      const borderW = W * 0.12;
-      
-      const heroContent = sec.querySelector('.hero__content');
-      let avoidZones = [];
-      if (heroContent) {
-        const hRect = heroContent.getBoundingClientRect();
-        avoidZones.push(expand(toLocal(hRect, sRect), AVOID_PAD));
-      }
-      
-      const indices = shuffle([...Array(IMAGES_TOTAL)].map((_, i) => i + 1));
-      let placed = [];
-      
-      for (let i = 0; i < count; i++) {
-        const size = rint(minPx, maxPx);
-        const spacing = size * SPACING_RATIO;
-        let found = false;
-        
-        for (let tries = 0; tries < MAX_TRIES; tries++) {
-          const inCircle = Math.random() < 0.6;
-          let x, y;
-          
-          if (inCircle) {
-            const angle = rand(0, Math.PI * 2);
-            const r = rand(R * 0.3, R);
-            x = centerX + r * Math.cos(angle);
-            y = centerY + r * Math.sin(angle);
-          } else {
-            const edge = rint(0, 3);
-            switch (edge) {
-              case 0: x = rand(SAFE_MARGIN, borderW); y = rand(SAFE_MARGIN, H - SAFE_MARGIN); break;
-              case 1: x = rand(W - borderW, W - SAFE_MARGIN); y = rand(SAFE_MARGIN, H - SAFE_MARGIN); break;
-              case 2: x = rand(SAFE_MARGIN, W - SAFE_MARGIN); y = rand(SAFE_MARGIN, borderW); break;
-              case 3: x = rand(SAFE_MARGIN, W - SAFE_MARGIN); y = rand(H - borderW, H - SAFE_MARGIN); break;
-            }
-          }
-          
-          const candidate = { left: x, top: y, width: size, height: size, right: x + size, bottom: y + size };
-          
-          if (candidate.left < SAFE_MARGIN || candidate.right > W - SAFE_MARGIN ||
-              candidate.top < SAFE_MARGIN || candidate.bottom > H - SAFE_MARGIN) continue;
-          
-          let collision = false;
-          for (const z of avoidZones) {
-            if (intersects(candidate, z)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          collision = false;
-          for (const p of placed) {
-            const bufferBox = expand(p, spacing);
-            if (intersects(candidate, bufferBox)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          found = true;
-          placed.push(candidate);
-          
-          const img = new Image();
-          img.loading = 'lazy'; // Native lazy loading
-          img.className = 'flower ' + (Math.random() < 0.5 ? 'flower--soft' : 'flower--bold');
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;`;
-          img.alt = '';
-          box.appendChild(img);
-          break;
-        }
-        
-        if (!found) {
-          const x = rand(SAFE_MARGIN, W - size - SAFE_MARGIN);
-          const y = rand(SAFE_MARGIN, H - size - SAFE_MARGIN);
-          const img = new Image();
-          img.loading = 'lazy';
-          img.className = 'flower flower--soft';
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;opacity:0.25;`;
-          img.alt = '';
-          box.appendChild(img);
-        }
-      }
-    } else {
-      // Other sections: simpler placement
-      const content = sec.querySelector('.container, .message, .rsvp');
-      let avoidZones = [];
-      if (content) {
-        const cRect = content.getBoundingClientRect();
-        avoidZones.push(expand(toLocal(cRect, sRect), AVOID_PAD));
-      }
-      
-      const indices = shuffle([...Array(IMAGES_TOTAL)].map((_, i) => i + 1));
-      let placed = [];
-      
-      for (let i = 0; i < count; i++) {
-        const size = rint(minPx, maxPx);
-        const spacing = size * SPACING_RATIO;
-        let found = false;
-        
-        for (let tries = 0; tries < MAX_TRIES; tries++) {
-          const x = rand(SAFE_MARGIN, W - size - SAFE_MARGIN);
-          const y = rand(SAFE_MARGIN, H - size - SAFE_MARGIN);
-          const candidate = { left: x, top: y, width: size, height: size, right: x + size, bottom: y + size };
-          
-          let collision = false;
-          for (const z of avoidZones) {
-            if (intersects(candidate, z)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          collision = false;
-          for (const p of placed) {
-            const bufferBox = expand(p, spacing);
-            if (intersects(candidate, bufferBox)) {
-              collision = true;
-              break;
-            }
-          }
-          if (collision) continue;
-          
-          found = true;
-          placed.push(candidate);
-          
-          const img = new Image();
-          img.loading = 'lazy';
-          img.className = 'flower ' + (Math.random() < 0.5 ? 'flower--soft' : 'flower--bold');
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;`;
-          img.alt = '';
-          box.appendChild(img);
-          break;
-        }
-        
-        if (!found) {
-          const x = rand(SAFE_MARGIN, W - size - SAFE_MARGIN);
-          const y = rand(SAFE_MARGIN, H - size - SAFE_MARGIN);
-          const img = new Image();
-          img.loading = 'lazy';
-          img.className = 'flower flower--soft';
-          img.src = `assets/flowers/${indices[i % IMAGES_TOTAL]}.webp`;
-          img.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;opacity:0.25;`;
-          img.alt = '';
-          box.appendChild(img);
-        }
-      }
-    }
-  }
-  
-  function buildAll() {
-    SECTIONS.forEach(entry => buildSection(entry));
-  }
-  
-  buildAll();
-  
-  // Debounced rebuild on resize
-  const debouncedRebuild = debounce(buildAll, 300);
-  window.addEventListener('resize', debouncedRebuild);
+let _supportsWebP;
+function supportsWebP(){
+  if(typeof _supportsWebP==='boolean') return _supportsWebP;
+  try{const c=document.createElement('canvas');_supportsWebP=c.getContext&&c.getContext('2d')?c.toDataURL('image/webp').indexOf('data:image/webp')===0:false;}catch(e){_supportsWebP=false;}return _supportsWebP;
 }
+function getViewportTier(){const w=window.innerWidth; if(w<480) return 'small-mobile'; if(w<768) return 'mobile'; if(w<1024) return 'tablet'; return 'desktop';}
+class SpatialHash{constructor(cellSize){this.cellSize=Math.max(16,cellSize|0);this.map=new Map();}key(x,y){return x+','+y}cellsForRect(r){const cs=this.cellSize;const x0=Math.floor(r.left/cs),y0=Math.floor(r.top/cs),x1=Math.floor(r.right/cs),y1=Math.floor(r.bottom/cs);const list=[];for(let y=y0;y<=y1;y++){for(let x=x0;x<=x1;x++){list.push([x,y]);}}return list}insert(rect){for(const [x,y] of this.cellsForRect(rect)){const k=this.key(x,y);if(!this.map.has(k)) this.map.set(k,[]);this.map.get(k).push(rect)}}query(rect){const res=[];const seen=new Set();for(const [x,y] of this.cellsForRect(rect)){const k=this.key(x,y);const arr=this.map.get(k);if(!arr) continue;for(const r of arr){if(r._id&&!seen.has(r._id)){seen.add(r._id);res.push(r);}}}return res}}
+function rectIntersects(a,b){return !(a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom)}
+function ensureFlowersBg(section){let box=section.querySelector(':scope > .flowers-bg');if(!box){box=document.createElement('div');box.className='flowers-bg';section.insertBefore(box,section.firstChild);}return box;}
+function toLocalRect(rect,root){return{left:rect.left-root.left,top:rect.top-root.top,width:rect.width,height:rect.height,right:rect.right-root.left,bottom:rect.bottom-root.top};}
+function pickSizePx(tier){const ranges={"small-mobile":{small:[80,120],medium:[120,140],large:[140,160]},"mobile":{small:[100,140],medium:[140,170],large:[170,200]},"tablet":{small:[120,170],medium:[170,210],large:[210,240]},"desktop":{small:[150,210],medium:[210,270],large:[270,320]}};const d=Math.random();let bucket='small';if(d>0.85) bucket='large'; else if(d>0.60) bucket='medium'; const [a,b]=ranges[tier][bucket];return Math.floor(a+Math.random()*(b-a+1));}
+function getSectionEntries(){const tier=getViewportTier();const scale=tier==='desktop'?1:tier==='tablet'?0.8:tier==='mobile'?0.65:0.5;const mk=b=>Math.max(2,Math.floor(b*scale));return[{selector:'.hero',count:mk(10)},{selector:'#mensaje',count:mk(7)},{selector:'#detalles',count:mk(12)},{selector:'#ubicacion',count:mk(6)},{selector:'#rsvp',count:mk(6)}];}
+function placeFlowersForSection(sectionEl,count,tier){const secRect=sectionEl.getBoundingClientRect();const W=Math.max(1,Math.floor(secRect.width));const H=Math.max(1,Math.floor(secRect.height));if(W<40||H<40) return[];const avoids=[];const content=sectionEl.querySelector('.hero__content, .container, .message, .rsvp');if(content) avoids.push(toLocalRect(content.getBoundingClientRect(),secRect));const MAX_TRIES=32;const SAFE=tier==='desktop'?12:tier==='tablet'?10:tier==='mobile'?8:6;const hash=new SpatialHash(64);const placed=[];let idSeq=1;function expand(r,p){return{left:r.left-p,top:r.top-p,right:r.right+p,bottom:r.bottom+p,width:r.width+p*2,height:r.height+p*2,_id:r._id}}function fits(r){if(r.left<0||r.top<0||r.right>W||r.bottom>H) return false;for(const a of avoids){if(rectIntersects(expand(r,SAFE),a)) return false;}const near=hash.query(expand(r,SAFE));for(const o of near){if(rectIntersects(expand(r,SAFE),o)) return false;}return true}const randint=(a,b)=>Math.floor(a+Math.random()*(b-a+1));const nextIndex=(()=>{const arr=Array.from({length:26},(_,i)=>i+1);for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}let p=0;return()=>{const v=arr[p%arr.length];p++;return v}})();let attempts=0;while(placed.length<count&&attempts<count*MAX_TRIES){attempts++;const size=pickSizePx(tier);const x=randint(0,Math.max(0,W-size));const y=randint(0,Math.max(0,H-size));const rect={left:x,top:y,right:x+size,bottom:y+size,width:size,height:size,_id:idSeq++};if(!fits(rect)) continue;placed.push({xPct:(x/W),yPct:(y/H),size,idx:nextIndex()});hash.insert(rect);}return placed;}
+function renderFlowers(sectionEl,placements,tier){const box=ensureFlowersBg(sectionEl);box.innerHTML='';const secRect=sectionEl.getBoundingClientRect();const W=Math.max(1,Math.floor(secRect.width));const H=Math.max(1,Math.floor(secRect.height));const motionScale=tier==='desktop'?1:tier==='tablet'?0.8:tier==='mobile'?0.6:0.5;const ampY=Math.round(10*motionScale);const ampX=Math.round(6*motionScale);const webpFirst=supportsWebP();for(const p of placements){const x=Math.round(p.xPct*W);const y=Math.round(p.yPct*H);const size=p.size;const wrap=document.createElement('div');wrap.className='flower';wrap.style.left=x+'px';wrap.style.top=y+'px';wrap.style.width=size+'px';wrap.style.height=size+'px';const img=document.createElement('img');img.className='flower__img';img.alt='';img.loading='lazy';img.decoding='async';const base='assets/flowers/png/'+p.idx;if(webpFirst){img.src=base+'.webp';img.addEventListener('error',function onErr(){img.removeEventListener('error',onErr);img.src=base+'.png';});}else{img.src=base+'.png';}const dx=(Math.random()*2-1)*ampX;const dy=(Math.random()*2-1)*ampY;const dur=6+Math.random()*6;img.style.setProperty('--dx',dx.toFixed(1)+'px');img.style.setProperty('--dy',dy.toFixed(1)+'px');img.style.setProperty('--float-dur',dur.toFixed(2)+'s');wrap.appendChild(img);box.appendChild(wrap);} }
+function buildFlowersLayout(){const tier=getViewportTier();const entries=getSectionEntries();const layout={version:'v2',tier,sections:[]};for(const e of entries){const sec=document.querySelector(e.selector);if(!sec) continue;const placements=placeFlowersForSection(sec,e.count,tier);layout.sections.push({selector:e.selector,placements});}return layout;}
+function applyFlowersLayout(layout){const tier=layout.tier;for(const s of layout.sections){const sec=document.querySelector(s.selector);if(!sec) continue;renderFlowers(sec,s.placements,tier);} }
+function cacheKeyForTier(tier){return 'flowers_layout::'+tier+'::v2';}
+function initFlowersV2(){if(flowersInitialized) return;flowersInitialized=true;const tier=getViewportTier();const key=cacheKeyForTier(tier);let layout=null;try{const raw=sessionStorage.getItem(key);if(raw) layout=JSON.parse(raw);}catch{}if(!layout||layout.version!=='v2'||layout.tier!==tier){layout=buildFlowersLayout();try{sessionStorage.setItem(key,JSON.stringify(layout));}catch{}}applyFlowersLayout(layout);window.addEventListener('resize',debounce(()=>{const newTier=getViewportTier();if(newTier!==layout.tier){const k=cacheKeyForTier(newTier);let lay=null;try{const raw=sessionStorage.getItem(k);if(raw) lay=JSON.parse(raw);}catch{}if(!lay||lay.version!=='v2'||lay.tier!==newTier){lay=buildFlowersLayout();try{sessionStorage.setItem(k,JSON.stringify(lay));}catch{}}applyFlowersLayout(lay);layout=lay;}else{applyFlowersLayout(layout);} },300));}
 
 // Lazy-load flowers using Intersection Observer
-function setupFlowersLazyLoad() {
-  if (!('IntersectionObserver' in window)) {
-    // Fallback: init immediately
-    initSectionFlowers();
-    return;
-  }
-  
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        initSectionFlowers();
-        observer.disconnect();
-      }
-    });
-  }, { rootMargin: '100px' });
-  
-  if (DOM.hero) observer.observe(DOM.hero);
+function setupFlowersLazyLoad(){
+  if(!('IntersectionObserver' in window)) {initFlowersV2();return;}
+  const observer=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{if(entry.isIntersecting){initFlowersV2();observer.disconnect();}});
+  },{rootMargin:'100px'});
+  if(DOM.hero) observer.observe(DOM.hero);
 }
 
 // ===== FLOATING PETALS (Reduced count on mobile) =====
