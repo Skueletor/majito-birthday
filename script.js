@@ -1297,3 +1297,101 @@ if (!window.requestIdleCallback) {
     }, 1);
   };
 }
+
+// === Booster Block (perf micro-optimizations) ===
+(function booster(){
+  // Breakpoint helper
+  function bp(){const w=window.innerWidth;return w<480?'xs':w<768?'sm':w<1024?'md':'lg';}
+  const CAT = bp();
+  const G = (window.__boosterFlags = window.__boosterFlags || { petals:false, parallax:false, reveals:false, details:false });
+
+  // Viewport-category layout caching (non-invasive)
+  try {
+    const existing = sessionStorage.getItem('flowersLayout');
+    const catKey = 'flowersLayout_cat_'+CAT;
+    if (existing && !sessionStorage.getItem(catKey)) sessionStorage.setItem(catKey, existing);
+    else if (!existing){
+      const alt = sessionStorage.getItem(catKey);
+      if (alt) sessionStorage.setItem('flowersLayout', alt);
+    }
+  } catch(e) {}
+
+  // Suspend GSAP when tab hidden
+  if (typeof document!=='undefined'){
+    document.addEventListener('visibilitychange',()=>{
+      if (typeof gsap==='undefined') return;
+      if (document.hidden){
+        if (gsap.ticker) gsap.ticker.sleep();
+        gsap.globalTimeline && gsap.globalTimeline.pause();
+      } else {
+        if (gsap.ticker) gsap.ticker.wake();
+        gsap.globalTimeline && gsap.globalTimeline.resume();
+      }
+    },{passive:true});
+  }
+
+  // Style injection for contain / will-change if not present
+  try {
+    const NEEDLE = '.booster-contain-rules';
+    if (!document.querySelector(NEEDLE)){
+      const style = document.createElement('style');
+      style.className = NEEDLE.slice(1);
+      style.textContent = '.panel,.flowers-bg,.petals-layer{contain:layout style paint;will-change:transform;}';
+      document.head.appendChild(style);
+    }
+  } catch(e) {}
+
+  // Replace simple ScrollTrigger usage with IntersectionObserver for details & panel reveals
+  if ('IntersectionObserver' in window && typeof gsap!=='undefined') {
+    // Override initDetails
+    initDetails = function(){
+      const section = DOM.detalles; if(!section) return;
+      const cards = section.querySelectorAll('.card');
+      const obs = new IntersectionObserver(entries=>{
+        entries.forEach(en=>{if(en.isIntersecting){
+          gsap.from(cards,{opacity:0,y:24,duration:0.6,stagger: (isMobile()?0.1:0.15), ease:'power2.out'});
+          obs.disconnect();
+        }});
+      },{root:null,threshold:0.15});
+      obs.observe(section);
+    };
+    // Override revealSections
+    revealSections = function(){
+      const panels = document.querySelectorAll('.panel');
+      const obs = new IntersectionObserver(entries=>{
+        entries.forEach(en=>{if(en.isIntersecting){
+          gsap.fromTo(en.target,{opacity:0,y:30},{opacity:1,y:0,duration:0.8,ease:'power2.out'});
+          obs.unobserve(en.target);
+        }});
+      },{root:null,threshold:0.1});
+      panels.forEach(p=>obs.observe(p));
+    };
+
+    // Kill non-essential ScrollTriggers (keep message pin)
+    if (typeof ScrollTrigger!=='undefined'){
+      ScrollTrigger.getAll().forEach(t=>{
+        const trg = t.trigger;
+        if (!trg || !trg.classList) return;
+        const isPanel = trg.classList.contains('panel');
+        const isMensaje = trg.id === 'mensaje' || trg.closest && trg.closest('#mensaje');
+        const isDetalles = trg.id === 'detalles' || trg.closest && trg.closest('#detalles');
+        if ((isPanel && !isMensaje) || isDetalles) t.kill();
+      });
+    }
+
+    // Bootstrap IO-based reveals immediately if not already done
+    if (!G.reveals){ G.reveals = true; requestAnimationFrame(()=> revealSections()); }
+    if (!G.details){ G.details = true; requestAnimationFrame(()=> initDetails()); }
+  }
+
+  // Defer non-critical idle motions (petals / parallax) with rAF chain + requestIdleCallback
+  function defer(fn){let id=0;function step(){id++;if(id<3)requestAnimationFrame(step);else fn();}requestAnimationFrame(step);} // wait ~3 frames
+  if (typeof requestIdleCallback==='function'){
+    requestIdleCallback(()=>defer(()=>{
+      if (!G.petals){ G.petals = true; initPetals(); }
+      if (!isMobile() && !G.parallax){ G.parallax = true; initParallaxBlobs(); }
+    }));
+  }
+
+  // Minimal comment cleanup example (no runtime effect) - intentionally left sparse.
+})();
