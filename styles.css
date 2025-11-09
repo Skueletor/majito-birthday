@@ -530,6 +530,20 @@ body{
   contain: layout style paint;
 }
 
+/* Flowers V2: drift animation on image child to avoid layout shift */
+.flower{position:absolute; display:block; opacity:.4; pointer-events:none; mix-blend-mode:multiply; filter: drop-shadow(0 10px 20px rgba(0,0,0,.06));}
+.flower__img{display:block; width:100%; height:auto; will-change: transform; transform: translate3d(0,0,0); animation: flowerFloat var(--float-dur, 8s) ease-in-out infinite alternate;}
+@keyframes flowerFloat {
+  from { transform: translate3d(0,0,0); }
+  to   { transform: translate3d(var(--dx, 4px), var(--dy, 6px), 0); }
+}
+@media (min-width: 768px){
+  .flower{opacity:.45; filter: drop-shadow(0 15px 30px rgba(0,0,0,.08));}
+}
+@media (prefers-reduced-motion: reduce){
+  .flower__img{animation:none;}
+}
+
 .map-actions{
   display:flex;
   justify-content:center;
@@ -854,3 +868,209 @@ body{
 /* Removed timed side-entry sticker wrapper */
 
 /* Removed timed side-entry sticker animation */
+
+/* ===== LOADER: "CARD OPENING" ANIMATION ===== */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #ffe7ef 0%, #f6e3ea 50%, #ffd5e6 100%);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+
+.loader.loader--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader__backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.loader__petals {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.loader__card {
+  position: relative;
+  width: clamp(280px, 85vw, 420px);
+  height: clamp(380px, 60vh, 520px);
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+.loader__card-left,
+.loader__card-right {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,247,250,0.95) 100%);
+  border: 2px solid rgba(224,138,168,0.2);
+  box-shadow: 0 20px 60px rgba(224,138,168,0.25);
+  border-radius: 12px;
+  transform-origin: center;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.loader__card-left {
+  left: 0;
+  transform-origin: right center;
+  border-right: 1px solid rgba(224,138,168,0.15);
+}
+
+.loader__card-right {
+  right: 0;
+  transform-origin: left center;
+  border-left: 1px solid rgba(224,138,168,0.15);
+}
+
+/* Card opening animation */
+@keyframes cardOpenLeft {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(-110deg); }
+}
+
+@keyframes cardOpenRight {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(110deg); }
+}
+
+.loader--opening .loader__card-left {
+  animation: cardOpenLeft 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.loader--opening .loader__card-right {
+  animation: cardOpenRight 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.loader__content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  width: 100%;
+  padding: 0 2rem;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.loader__text {
+  font-family: 'Railey-PersonalUse', 'Railey', 'Dancing Script', cursive;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  color: var(--rose-600);
+  margin: 0 0 1.5rem;
+  text-shadow: 0 2px 8px rgba(224,138,168,0.2);
+  opacity: 0;
+  animation: fadeInText 0.8s ease 0.3s forwards;
+}
+
+.loader__progress {
+  width: 100%;
+  max-width: 280px;
+  height: 8px;
+  background: rgba(224,138,168,0.15);
+  border-radius: 999px;
+  margin: 0 auto 1rem;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.08);
+  opacity: 0;
+  animation: fadeInText 0.8s ease 0.5s forwards;
+}
+
+.loader__progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--rose) 0%, var(--rose-600) 100%);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 12px rgba(224,138,168,0.5);
+}
+
+.loader__percentage {
+  font-family: 'Raleway', sans-serif;
+  font-size: clamp(0.875rem, 2.5vw, 1rem);
+  font-weight: 600;
+  color: var(--rose-600);
+  margin: 0;
+  opacity: 0;
+  animation: fadeInText 0.8s ease 0.7s forwards;
+}
+
+@keyframes fadeInText {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Floating petals during load */
+.loader__petal {
+  position: absolute;
+  width: 20px;
+  height: 12px;
+  background: radial-gradient(100% 100% at 30% 40%, #fff 0%, rgba(255,255,255,0) 60%), #f1a8bf;
+  border-radius: 70% 70% 70% 0 / 80% 80% 80% 0;
+  opacity: 0.7;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .loader__card-left,
+  .loader__card-right {
+    animation-duration: 0.01ms !important;
+  }
+  
+  .loader__text,
+  .loader__progress,
+  .loader__percentage {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  
+  .loader__petal {
+    display: none;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 480px) {
+  .loader__card {
+    width: 90vw;
+    height: 55vh;
+  }
+  
+  .loader__content {
+    padding: 0 1rem;
+  }
+  
+  .loader__text {
+    font-size: clamp(1.25rem, 5vw, 2rem);
+    margin-bottom: 1rem;
+  }
+  
+  .loader__progress {
+    max-width: 220px;
+    height: 6px;
+  }
+}

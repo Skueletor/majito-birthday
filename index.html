@@ -35,6 +35,23 @@
     <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /></noscript>
   </head>
   <body>
+    <!-- Loader: "Card Opening" Animation -->
+    <div class="loader" id="loader" aria-hidden="false" role="status" aria-live="polite">
+      <div class="loader__backdrop"></div>
+      <div class="loader__petals" aria-hidden="true"></div>
+      <div class="loader__card">
+        <div class="loader__card-left"></div>
+        <div class="loader__card-right"></div>
+        <div class="loader__content">
+          <p class="loader__text">Abriendo invitación...</p>
+          <div class="loader__progress">
+            <div class="loader__progress-bar" id="loaderProgress"></div>
+          </div>
+          <p class="loader__percentage" id="loaderPercentage">0%</p>
+        </div>
+      </div>
+    </div>
+
     <div id="app">
       <!-- HERO -->
       <header class="section hero" id="inicio">
