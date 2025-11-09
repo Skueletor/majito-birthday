@@ -1,4 +1,171 @@
 // Optimized script with performance enhancements, debouncing, lazy-loading, and mobile-first approach
+
+// ===== LOADER: "CARD OPENING" ANIMATION =====
+(function initLoader() {
+  const loader = document.getElementById('loader');
+  const progressBar = document.getElementById('loaderProgress');
+  const percentage = document.getElementById('loaderPercentage');
+  const petalsContainer = loader?.querySelector('.loader__petals');
+  
+  if (!loader) return;
+  
+  let progress = 0;
+  const FALLBACK_TIMEOUT = 5000; // 5 seconds max
+  const HOLD_TIME = 600; // Hold at 100% for 600ms before opening
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  
+  // Update progress bar
+  function updateProgress(value) {
+    progress = Math.min(100, Math.max(0, value));
+    if (progressBar) progressBar.style.width = progress + '%';
+    if (percentage) percentage.textContent = Math.round(progress) + '%';
+  }
+  
+  // Spawn floating petals during load
+  function spawnLoaderPetal() {
+    if (!petalsContainer || reducedMotion) return;
+    
+    const petal = document.createElement('div');
+    petal.className = 'loader__petal';
+    petal.style.left = Math.random() * 100 + '%';
+    petal.style.top = '-30px';
+    petalsContainer.appendChild(petal);
+    
+    const duration = 4 + Math.random() * 4;
+    const drift = (Math.random() - 0.5) * 60;
+    const rotation = Math.random() * 360;
+    
+    petal.animate([
+      { transform: 'translateY(0) translateX(0) rotate(0deg)', opacity: 0.7 },
+      { transform: `translateY(${window.innerHeight + 60}px) translateX(${drift}px) rotate(${rotation}deg)`, opacity: 0 }
+    ], {
+      duration: duration * 1000,
+      easing: 'linear',
+      fill: 'forwards'
+    }).onfinish = () => petal.remove();
+  }
+  
+  // Spawn petals periodically
+  let petalInterval;
+  if (!reducedMotion) {
+    petalInterval = setInterval(spawnLoaderPetal, 800);
+    // Spawn initial petals
+    for (let i = 0; i < 5; i++) {
+      setTimeout(spawnLoaderPetal, i * 200);
+    }
+  }
+  
+  // Track loaded resources
+  const resourcesToLoad = new Set();
+  let resourcesLoaded = 0;
+  
+  // Collect all images to preload
+  function collectImages() {
+    // Flower images (26 total)
+    for (let i = 1; i <= 26; i++) {
+      resourcesToLoad.add(`assets/flowers/${i}.webp`);
+    }
+    
+    // Hero/critical images
+    const criticalImages = document.querySelectorAll('img[src], img[data-src]');
+    criticalImages.forEach(img => {
+      const src = img.src || img.getAttribute('data-src');
+      if (src && !src.startsWith('data:')) {
+        resourcesToLoad.add(src);
+      }
+    });
+    
+    // Background images from CSS
+    const elementsWithBg = document.querySelectorAll('[style*="background-image"]');
+    elementsWithBg.forEach(el => {
+      const style = el.style.backgroundImage;
+      const match = style.match(/url\(['"]?([^'"]+)['"]?\)/);
+      if (match) resourcesToLoad.add(match[1]);
+    });
+  }
+  
+  collectImages();
+  const totalResources = Math.max(resourcesToLoad.size, 1);
+  
+  // Load image with progress tracking
+  function loadImage(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        resourcesLoaded++;
+        updateProgress((resourcesLoaded / totalResources) * 95); // Reserve 5% for final checks
+        resolve();
+      };
+      img.onerror = () => {
+        resourcesLoaded++;
+        updateProgress((resourcesLoaded / totalResources) * 95);
+        resolve(); // Continue even if image fails
+      };
+      img.src = src;
+    });
+  }
+  
+  // Load all resources
+  async function loadAllResources() {
+    const imagePromises = Array.from(resourcesToLoad).map(loadImage);
+    
+    // Wait for all images OR timeout
+    const timeoutPromise = new Promise(resolve => setTimeout(resolve, FALLBACK_TIMEOUT));
+    await Promise.race([
+      Promise.all(imagePromises),
+      timeoutPromise
+    ]);
+    
+    // Check if fonts and GSAP are ready
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready.catch(() => {});
+    }
+    
+    // Final progress update
+    updateProgress(100);
+  }
+  
+  // Complete loader animation and reveal page
+  function completeLoader() {
+    if (petalInterval) clearInterval(petalInterval);
+    
+    // Hold at 100% briefly
+    setTimeout(() => {
+      // Add opening class to trigger card animation
+      loader.classList.add('loader--opening');
+      
+      // Wait for card to open, then fade out
+      setTimeout(() => {
+        loader.classList.add('loader--hidden');
+        
+        // Remove loader from DOM after fade
+        setTimeout(() => {
+          if (loader.parentNode) {
+            loader.parentNode.removeChild(loader);
+          }
+        }, 600);
+      }, reducedMotion ? 100 : 1200);
+    }, HOLD_TIME);
+  }
+  
+  // Start loading process
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAllResources().then(completeLoader);
+    });
+  } else {
+    loadAllResources().then(completeLoader);
+  }
+  
+  // Fallback: force close after timeout regardless of load state
+  setTimeout(() => {
+    if (loader && !loader.classList.contains('loader--hidden')) {
+      console.warn('Loader timeout reached, forcing close');
+      completeLoader();
+    }
+  }, FALLBACK_TIMEOUT + 2000);
+})();
+
 // Performance utilities
 const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
 const isReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
