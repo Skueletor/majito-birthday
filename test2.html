@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<!-- Declaramos que es un documento HTML5 -->
+<html lang="es">
+  <!-- Abrimos el HTML y definimos el idioma como español -->
+  <head>
+    <!-- Parte 1: Abrimos el head del HTML -->
+    <meta charset="UTF-8" />
+    <!-- Definimos la codificación de caracteres -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Configuramos la responsividad -->
+    <title>Lenis Secciones</title>
+    <!-- Establecemos el título de la página -->
+    <style>
+      /*Parte 2: Abrimos la etiqueta style para añadir CSS */
+      body {
+        /* Estilos básicos para el body */
+        margin: 0; /* Quitamos los márgenes por defecto */
+        font-family: sans-serif; /* Usamos una fuente genérica */
+      }
+      .section {
+        /* Clase para las secciones generales */
+        height: 100vh; /* Altura del 100% de la ventana */
+        display: flex; /* Usamos flexbox para centrar contenido */
+        flex-direction: column; /* Alineamos los elementos en columna */
+        align-items: center; /* Centramos horizontalmente */
+        justify-content: center; /* Centramos verticalmente */
+        font-size: 2em; /* Tamaño de fuente grande */
+        color: white; /* Texto en blanco */
+      }
+      .orange-section {
+        /* Clase para la sección naranja */
+        position: relative; /* Posición relativa para elementos internos */
+        background-color: #e67e22; /* Fondo naranja */
+        height: 100vh; /* Altura completa */
+      }
+      .orange-section .left-content {
+        /* Contenido a la izquierda */
+        position: absolute; /* Posicionamiento absoluto */
+        top: 50%; /* Centrado verticalmente */
+        left: 50%; /* Centrado horizontalmente */
+        transform: translate(-50%, -50%); /* Ajuste fino del centrado */
+        z-index: 2; /* Capa superior */
+        color: white; /* Texto blanco */
+        font-size: 3em; /* Tamaño de fuente grande */
+      }
+      .orange-section .right-content {
+        /* Contenido a la derecha */
+        position: absolute; /* Posicionamiento absoluto */
+        top: 0; /* Desde la parte superior */
+        left: 50%; /* Mitad derecha de la pantalla */
+        width: 50%; /* Ocupa la mitad del ancho */
+        height: 100%; /* Altura completa */
+        display: flex; /* Flexbox para centrar */
+        flex-direction: column; /* Elementos en columna */
+        justify-content: center; /* Centrado vertical */
+        align-items: center; /* Centrado horizontal */
+        color: white; /* Texto blanco */
+        font-size: 1.5em; /* Tamaño de fuente mediano */
+        text-align: center; /* Texto centrado */
+        opacity: 1; /* Contenedor visible */
+      }
+      .dynamic-text {
+        /* Clase para textos dinámicos */
+        opacity: 0; /* Inicialmente ocultos */
+        position: absolute; /* Posicionamiento absoluto */
+        top: 50%; /* Centrado verticalmente */
+        left: 50%; /* Centrado horizontalmente */
+        transform: translate(-50%, -50%); /* Ajuste fino del centrado */
+        width: 80%; /* Ancho del 80% */
+        font-size: 1.2em; /* Tamaño de fuente pequeño */
+      }
+      .section:nth-child(3) {
+        /* Tercera sección */
+        background-color: #2ecc71; /* Fondo verde */
+      }
+      .section h2 {
+        /* Estilos para los títulos h2 */
+        font-size: 3em; /* Tamaño grande */
+        margin-bottom: 20px; /* Espacio inferior */
+      }
+      .blue-section {
+        /* Clase para la sección azul */
+        background-color: #3498db; /* Fondo azul */
+      }
+    </style>
+    <!-- Cerramos la etiqueta style -->
+  </head>
+  <!-- Cerramos el head -->
+  <body>
+    <!-- Abrimos el body donde irá el contenido -->
+    <div class="section blue-section">
+      <!-- Primera sección, azul -->
+      <h2>Sección 1</h2>
+      <!-- Título de la sección */-->
+      <p>Contenido de la primera sección.</p>
+      <!-- Párrafo descriptivo -->
+    </div>
+    <div class="section orange-section">
+      <!-- Segunda sección, naranja -->
+      <div class="left-content">
+        <!-- Contenido izquierdo -->
+        <h3>Sección 2</h3>
+        <!-- Título de la sección -->
+      </div>
+      <div class="right-content">
+        <!-- Contenido derecho -->
+        <p class="dynamic-text" data-text="Texto inicial de la Sección 2.">
+          <!-- Primer texto dinámico -->
+          Texto inicial de la Sección 2.
+        </p>
+        <p
+          class="dynamic-text"
+          data-text="Este es el segundo texto que aparece al hacer scroll."
+        >
+          <!-- Segundo texto dinámico -->
+          Este es el segundo texto que aparece al hacer scroll.
+        </p>
+        <p
+          class="dynamic-text"
+          data-text="Y aquí tenemos un tercer texto para mostrar la dinámica."
+        >
+          <!-- Tercer texto dinámico -->
+          Y aquí tenemos un tercer texto para mostrar la dinámica.
+        </p>
+      </div>
+    </div>
+    <div class="section">
+      <!-- Tercera sección, verde -->
+      <h2>Sección 3</h2>
+      <!-- Título de la sección */-->
+      <p>Contenido de la tercera sección.</p>
+      <!-- Párrafo descriptivo -->
+    </div>
+    <!-- Parte 4: Añadimos las bibliotecas necesarias -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <!-- Biblioteca GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <!-- Plugin ScrollTrigger -->
+    <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@latest/dist/lenis.min.js"></script>
+    <!-- Biblioteca Lenis -->
+    <!-- Parte 5: Inicializamos Lenis y ScrollTrigger -->
+    <script>
+      <!-- Abrimos la etiqueta script para JavaScript -->
+      // Inicializar Lenis para un scroll suave
+      const lenis = new Lenis({
+        lerp: 0.1 /* Controla la suavidad del scroll */,
+        smoothWheel: true /* Activa el scroll suave con la rueda */,
+      });
+      lenis.on(
+        "scroll",
+        ScrollTrigger.update
+      ); /* Conectamos Lenis con ScrollTrigger */
+      function raf(time) {
+        /* Función para animar el scroll */
+        lenis.raf(time);
+        requestAnimationFrame(raf);
+      }
+      requestAnimationFrame(raf); /* Iniciamos la animación del scroll */
+      // Inicializar ScrollTrigger para GSAP
+      gsap.registerPlugin(
+        ScrollTrigger
+      ); /* Registramos el plugin ScrollTrigger */
+      // Parte 6: Seleccionamos elementos y establecemos condiciones iniciales
+      const orangeSection =
+        document.querySelector(
+          ".orange-section"
+        ); /* Seleccionamos la sección naranja */
+      const leftContent =
+        orangeSection.querySelector(
+          ".left-content"
+        ); /* Seleccionamos el contenido izquierdo */
+      const rightContent =
+        orangeSection.querySelector(
+          ".right-content"
+        ); /* Seleccionamos el contenido derecho */
+      const dynamicTexts =
+        rightContent.querySelectorAll(
+          ".dynamic-text"
+        ); /* Seleccionamos todos los textos dinámicos */
+      gsap.set(dynamicTexts, {
+        opacity: 0,
+      }); /* Establecemos los textos dinámicos como ocultos */
+      // Parte 7: Creamos el pin para la sección naranja
+      ScrollTrigger.create({
+        trigger: orangeSection /* Elemento que activa el pin */,
+        start: "top top" /* Comienza cuando la parte superior llega al tope */,
+        end: "+=300%" /* Dura 3 veces la altura de la ventana */,
+        pin: true /* Fija la sección en su lugar */,
+        scrub: 1 /* Suaviza la animación con el scroll */,
+        //markers: true /* Descomentar para ver puntos de inicio y fin (depuración) */,
+      });
+      // Parte 8: Creamos la timeline para las animaciones
+      const tl = gsap.timeline({
+        /* Creamos una línea de tiempo */
+        scrollTrigger: {
+          trigger: orangeSection /* Activada por la sección naranja */,
+          start: "top top" /* Comienza en la parte superior */,
+          end: "+=300%" /* Dura 3 pantallas */,
+          scrub: 1 /* Sincronizada con el scroll */,
+        },
+      });
+      tl.to(leftContent, {
+        /* Movemos el título a la izquierda */
+        x: "-25vw" /* Desplazamiento horizontal */,
+        duration: 0.1 /* Duración corta */,
+      })
+        .to(
+          dynamicTexts[0],
+          {
+            /* Mostramos el primer texto */ opacity: 1 /* Visible */,
+            duration: 0.1 /* Duración corta */,
+          },
+          "+=0.1"
+        ) /* Retraso breve */
+        .to({}, { duration: 0.3 }) /* Pausa para leer */
+        .to(dynamicTexts[0], {
+          opacity: 0,
+          duration: 0.1,
+        }) /* Ocultamos el primer texto */
+        .to(dynamicTexts[1], {
+          opacity: 1,
+          duration: 0.1,
+        }) /* Mostramos el segundo texto */
+        .to({}, { duration: 0.3 }) /* Pausa para leer */
+        .to(dynamicTexts[1], {
+          opacity: 0,
+          duration: 0.1,
+        }) /* Ocultamos el segundo texto */
+        .to(dynamicTexts[2], {
+          opacity: 1,
+          duration: 0.1,
+        }) /* Mostramos el tercer texto */
+        .to({}, { duration: 0.3 }) /* Pausa para leer */
+        .to(dynamicTexts[2], {
+          opacity: 0,
+          duration: 0.1,
+        }); /* Ocultamos el tercer texto */
+    </script>
+    <!-- Cerramos la etiqueta script -->
+  </body>
+  <!-- Cerramos el body -->
+</html>
+

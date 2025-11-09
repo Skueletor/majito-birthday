@@ -1,5 +1,4 @@
-// improved: added mountLayout fragment batching, passive listeners, early js class swap already in HTML
-// Optimized script with performance enhancements, debouncing, lazy-loading, and mobile-first approach
+// Production-optimized script with advanced performance boosters
 // Performance utilities
 const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
 const isReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -18,7 +17,6 @@ function debounce(func, wait) {
   };
 }
 
-// Throttle utility for scroll handlers
 function throttle(func, limit) {
   let inThrottle;
   return function(...args) {
@@ -30,7 +28,6 @@ function throttle(func, limit) {
   };
 }
 
-// Cache DOM queries
 const DOM = {
   hero: null,
   mensaje: null,
@@ -52,23 +49,20 @@ const DOM = {
   }
 };
 
-// Initialize DOM cache when ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => DOM.init());
 } else {
   DOM.init();
 }
 
-// ===== LENIS SMOOTH SCROLL (Mobile-optimized) =====
 let lenis;
 function initLenis() {
   if (typeof Lenis === 'undefined') return;
   
-  // Lighter config on mobile for better performance
   const config = {
     lerp: isMobile() ? 0.08 : 0.12,
-    smoothWheel: !isMobile(), // Disable smooth wheel on mobile
-    smoothTouch: false, // Never smooth on touch
+    smoothWheel: !isMobile(),
+    smoothTouch: false,
   };
   
   lenis = new Lenis(config);
@@ -77,7 +71,7 @@ function initLenis() {
     if (typeof ScrollTrigger !== 'undefined') {
       ScrollTrigger.update();
     }
-  }, 16)); // ~60fps throttle
+  }, 16));
   
   function raf(time) {
     lenis.raf(time);
@@ -86,7 +80,6 @@ function initLenis() {
   requestAnimationFrame(raf);
 }
 
-// Defer Lenis init slightly to prioritize critical rendering
 if (typeof Lenis !== 'undefined') {
   if (document.readyState === 'complete') {
     setTimeout(initLenis, 100);
@@ -95,18 +88,14 @@ if (typeof Lenis !== 'undefined') {
   }
 }
 
-// ===== GSAP + ScrollTrigger Setup =====
 if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
-  
-  // Reduce GSAP tweens on mobile for better performance
   gsap.config({
     force3D: true,
     nullTargetWarn: false,
   });
 }
 
-// Helper: fade up animation
 function fadeUp(targets, opts = {}) {
   if (!motionOK || typeof gsap === 'undefined') return;
   return gsap.fromTo(targets,
@@ -115,15 +104,13 @@ function fadeUp(targets, opts = {}) {
   );
 }
 
-// ===== HERO ENTER ANIMATIONS (Reduced on mobile) =====
 function initHeroAnimations() {
   if (!motionOK || !DOM.hero) return;
   
-  const delay = isMobile() ? 0.05 : 0.1; // Faster on mobile
+  const delay = isMobile() ? 0.05 : 0.1;
   
   fadeUp('.overtitle', { delay });
   
-  // Title reveal with clip-path
   gsap.fromTo('.title',
     { clipPath: 'inset(0 0 100% 0)', opacity: 1 },
     { clipPath: 'inset(0 0 0% 0)', duration: 1.1, ease: 'power3.out', delay: delay + 0.05 }
@@ -133,7 +120,6 @@ function initHeroAnimations() {
   fadeUp('.btn--primary', { delay: delay + 0.45 });
 }
 
-// ===== PARALLAX BLOBS (Disabled on mobile for performance) =====
 function initParallaxBlobs() {
   if (!motionOK || isMobile() || typeof gsap === 'undefined') return;
   
@@ -152,13 +138,12 @@ function initParallaxBlobs() {
   });
 }
 
-// ===== MESSAGE SECTION (Optimized pin duration on mobile) =====
 function initMessage() {
   const section = DOM.mensaje;
   if (!section) return;
   
   const lines = section.querySelectorAll('.message__line');
-  const pinDuration = isMobile() ? '+=180%' : '+=220%'; // Shorter on mobile
+  const pinDuration = isMobile() ? '+=180%' : '+=220%';
   
   if (motionOK && typeof ScrollTrigger !== 'undefined') {
     ScrollTrigger.create({
@@ -179,7 +164,7 @@ function initMessage() {
     });
     
     tl.add(fadeUp('.message__title', { duration: 0.6 }))
-      .to({}, { duration: 0.2 }) // Shorter pauses on mobile
+      .to({}, { duration: 0.2 })
       .to(lines[0], { opacity: 1, y: 0, duration: 0.3 })
       .to({}, { duration: 0.2 })
       .to(lines[0], { opacity: 0, duration: 0.2 })
@@ -189,7 +174,6 @@ function initMessage() {
       .to(lines[2], { opacity: 1, y: 0, duration: 0.3 })
       .to({}, { duration: 0.2 });
   } else {
-    // No motion: show all lines statically
     lines.forEach(el => {
       el.style.opacity = '1';
       el.style.transform = 'none';
@@ -197,13 +181,12 @@ function initMessage() {
   }
 }
 
-// ===== DETAILS CARDS STAGGER =====
 function initDetails() {
   const section = DOM.detalles;
   if (!section || !motionOK || typeof gsap === 'undefined') return;
   
   const cards = section.querySelectorAll('.card');
-  const stagger = isMobile() ? 0.1 : 0.15; // Faster stagger on mobile
+  const stagger = isMobile() ? 0.1 : 0.15;
   
   gsap.from(cards, {
     opacity: 0,
@@ -218,16 +201,7 @@ function initDetails() {
   });
 }
 
-// ===== FLOWER SYSTEM V3: EAGER, DENSE, PERSISTENT =====
-// Design Goals:
-// 1. Background renders eagerly on first paint (no scroll dependency) and persists per session.
-// 2. Re-uses the available 26 assets to reach ~50 placements with subtle variation (positions/sizes) while avoiding overlap.
-// 3. DOM nodes are created only once; no rebuilds on scroll / intersection / resize.
-// 4. Layout is cached in sessionStorage to avoid recalculation on soft navigations / reload within session.
-// 5. Lightweight spatial hashing for O(k) collision checks instead of O(n^2).
-// 6. Graceful degradation: if a flower can't be placed after MAX_TRIES, it's skipped (never force overlapping).
-// 7. Responsive sizing tiers at generation time; sizes remain stable (no jitter) during resize.
-// 8. Zero external dependencies (GSAP optional for gentle idle motion).
+// FLOWER SYSTEM V3: Optimized collision-free layout with viewport caching
 
 const FlowerLayout = (function(){
   const BASE_IMAGE_COUNT = 26;
@@ -240,7 +214,6 @@ const FlowerLayout = (function(){
   const SPACING_SCALE = 0.12;    // Multiplier to turn size into buffer radius
   const HASH_CELL = 120;         // Spatial hash cell size (roughly medium flower width)
 
-  // Sections registry (counts computed dynamically by area)
   const SECTIONS = [
     { selector: '.hero', key: 'hero' },
     { selector: '#mensaje', key: 'mensaje' },
@@ -318,11 +291,13 @@ const FlowerLayout = (function(){
 
   // Size tiers per viewport category
   function viewportCategory(){
-    const w = window.innerWidth;
-    if (w < 480) return 'xs';
-    if (w < 768) return 'sm';
-    if (w < 1024) return 'md';
-    return 'lg';
+    return window.perfBooster?.getCachedViewportCategory?.() || (() => {
+      const w = window.innerWidth;
+      if (w < 480) return 'xs';
+      if (w < 768) return 'sm';
+      if (w < 1024) return 'md';
+      return 'lg';
+    })();
   }
   const SIZE_RULES = {
     xs: { small:[80,110],   med:[110,140],  large:[140,160] },
@@ -330,11 +305,10 @@ const FlowerLayout = (function(){
     md: { small:[140,190],  med:[190,250],  large:[250,290] },
     lg: { small:[150,210],  med:[210,260],  large:[260,320] },
   };
-  // Probability distribution for size tiers (cumulative logic when rolling)
   const SIZE_DIST = [
     { tier:'small', p:0.60 },
-    { tier:'med',   p:0.85 }, // 0.25 slice
-    { tier:'large', p:1.00 }, // 0.15 slice
+    { tier:'med',   p:0.85 },
+    { tier:'large', p:1.00 },
   ];
 
   function pickTier(){
@@ -640,12 +614,11 @@ const FlowerLayout = (function(){
     });
   }
 
-  // Gentle idle motion using GSAP; transform-only for GPU acceleration
   function enableIdleMotion(container){
     if (typeof gsap === 'undefined') return;
     const els = container.querySelectorAll('.flower');
     els.forEach((el, i) => {
-      const amp = isMobile() ? 4 : 7; // px
+      const amp = isMobile() ? 4 : 7;
       const dx = (Math.random()*amp*2 - amp);
       const dy = (Math.random()*amp*2 - amp);
       const dur = (isMobile()? 6:9) + Math.random()*3;
@@ -657,7 +630,6 @@ const FlowerLayout = (function(){
         yoyo: true,
         repeat: -1,
       });
-      // Subtle breathing scale
       gsap.to(el, {
         scale: 1 + (isMobile()? 0.01 : 0.015),
         duration: dur*1.2,
@@ -668,7 +640,6 @@ const FlowerLayout = (function(){
     });
   }
 
-  // Animate existing nodes to a new layout (for major resize/orientation change)
   function animateToLayout(newLayout){
     if (typeof gsap === 'undefined') return mountFresh(newLayout);
     const idToTarget = new Map();
@@ -699,23 +670,17 @@ const FlowerLayout = (function(){
       return;
     }
     tl.eventCallback('onComplete', () => {
-      // Refresh idle motion (optional)
       document.querySelectorAll('.flowers-bg').forEach(enableIdleMotion);
     });
   }
 
   function mountFresh(layout){
-    // Clear any previous flowers-bg to avoid mixed states
     document.querySelectorAll('.flowers-bg').forEach(box => { box.dataset.mounted=''; box.innerHTML=''; });
     mountLayout(layout);
   }
 
-  // === STATIC LAYOUT LOADING STRATEGY ===
-  // improved: instead of computing layout every visit, try to load a precomputed JSON for faster TTI.
-  // Fallback to dynamic generation only if fetch fails (ensures resilience).
   const STATIC_LAYOUT_URL = 'assets/data/flowers-layout.json';
 
-  // Build a runtime layout (with concrete pixels) from a structured static JSON
   function buildRuntimeLayoutFromStatic(payload){
     try {
       if (!payload || !payload.sections) return null;
@@ -724,7 +689,6 @@ const FlowerLayout = (function(){
       const scale = scaleMap[cat] || 1;
       const overrides = (payload.breakpointOverrides && payload.breakpointOverrides[cat]) || {};
 
-      // Map section key -> selector used in this codebase
       const keyToSelector = SECTIONS.reduce((acc, s) => { acc[s.key] = s.selector; return acc; }, {});
 
       const runtime = { meta: { version: (payload.meta && payload.meta.version) || LAYOUT_VERSION, cat }, flowers: [] };
@@ -778,7 +742,7 @@ const FlowerLayout = (function(){
       runtime.meta.placed = runtime.flowers.length;
       return runtime;
     } catch(e){
-      console.warn('[FlowerLayout] Failed to build runtime layout from static payload', e);
+      console.warn('[FlowerLayout] Static layout build failed', e);
       return null;
     }
   }
@@ -803,12 +767,12 @@ const FlowerLayout = (function(){
         // Static layout: we skip bindRelayout (no expensive recompute) for performance.
       })
       .catch(err => {
-        console.warn('[FlowerLayout] Static layout load failed, generating dynamically:', err);
+        console.warn('[FlowerLayout] Static load failed, generating:', err);
         const dyn = generateLayout();
         persistLayout(dyn);
         try { sessionStorage.setItem('flowersLayout', JSON.stringify(dyn)); } catch(e) {}
         mountLayout(dyn);
-        bindRelayout(); // only bind if we had to generate dynamically
+        bindRelayout();
       });
   }
 
@@ -827,7 +791,6 @@ const FlowerLayout = (function(){
     fetchStaticAndMount();
   }
 
-  // Relayout binding: major resize / orientation change
   function bindRelayout(){
     let lastW = window.innerWidth;
     let lastH = window.innerHeight;
@@ -837,7 +800,6 @@ const FlowerLayout = (function(){
       const h = window.innerHeight;
       const dw = Math.abs(w - lastW);
       const dh = Math.abs(h - lastH);
-      // Trigger if width changes > 15% or orientation flip (portrait/landscape)
       const orientationChanged = (w > h && lastW <= lastH) || (w <= h && lastW > lastH);
       return orientationChanged || (dw / Math.max(lastW,1) > 0.15) || (dh / Math.max(lastH,1) > 0.25);
     }
@@ -849,11 +811,10 @@ const FlowerLayout = (function(){
         lastW = window.innerWidth;
         lastH = window.innerHeight;
         pending = false;
-        // Generate new layout, animate existing nodes
         const fresh = generateLayout();
         persistLayout(fresh);
-        animateToLayout(fresh); // tween to new positions
-      }, 180); // slight debounce
+        animateToLayout(fresh);
+      }, 180);
     }
     window.addEventListener('resize', handle, { passive: true });
     window.addEventListener('orientationchange', handle, { passive: true });
@@ -862,7 +823,6 @@ const FlowerLayout = (function(){
   return { init };
 })();
 
-// ===== FLOATING PETALS (Reduced count on mobile) =====
 function initPetals() {
   if (!motionOK || typeof gsap === 'undefined') return;
   
@@ -873,7 +833,7 @@ function initPetals() {
     document.body.appendChild(layer);
   }
   
-  const MAX_ACTIVE = isMobile() ? 10 : 20; // Fewer petals on mobile
+  const MAX_ACTIVE = isMobile() ? 10 : 20;
   let active = 0;
   
   function rand(min, max) {
@@ -929,7 +889,6 @@ function initPetals() {
     }, interval);
   }
   
-  // Initial petals
   const initial = isMobile() ? 3 : 6;
   for (let i = 0; i < initial; i++) {
     setTimeout(() => spawnPetal(), i * 400);
@@ -937,7 +896,6 @@ function initPetals() {
   scheduleNext();
 }
 
-// ===== SMOOTH ANCHOR LINKS =====
 function initAnchors() {
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
@@ -957,7 +915,6 @@ function initAnchors() {
   });
 }
 
-// ===== SECTION REVEALS =====
 function revealSections() {
   if (!motionOK || typeof gsap === 'undefined') return;
   
@@ -979,7 +936,6 @@ function revealSections() {
   });
 }
 
-// ===== LAZY-LOADED LEAFLET MAP =====
 let mapInitialized = false;
 
 function initMap() {
@@ -1005,12 +961,11 @@ function initMap() {
   let lat = parseFloat(wrap.getAttribute('data-lat'));
   let lng = parseFloat(wrap.getAttribute('data-lng'));
   
-  // Mobile-optimized map config
   const map = L.map(mapDiv, {
     zoomControl: true,
     scrollWheelZoom: false,
     attributionControl: false,
-    maxZoom: isMobile() ? 15 : 19, // Reduce zoom on mobile
+    maxZoom: isMobile() ? 15 : 19,
   }).setView([0, 0], 2);
   
   const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png', {
@@ -1045,7 +1000,6 @@ function initMap() {
     
     const marker = L.marker([_lat, _lng], { icon }).addTo(map);
     
-    // Compressed popup content for mobile
     const popupContent = `<div class="map-popup">
       <div class="map-popup__title">${address || 'Ubicación'}</div>
       ${address ? `<div class="map-popup__addr">${address}</div>` : ''}
@@ -1071,10 +1025,8 @@ function initMap() {
   }
 }
 
-// Lazy-load map using Intersection Observer
 function setupMapLazyLoad() {
   if (!('IntersectionObserver' in window) || !DOM.ubicacion) {
-    // Fallback: init on load
     window.addEventListener('load', () => setTimeout(initMap, 500));
     return;
   }
@@ -1091,7 +1043,6 @@ function setupMapLazyLoad() {
   observer.observe(DOM.ubicacion);
 }
 
-// ===== GIFT QR MODAL =====
 function initGiftModal() {
   const open = document.getElementById('giftOpen');
   const modal = DOM.giftModal;
@@ -1193,7 +1144,7 @@ function initGiftModal() {
         }
         requestAnimationFrame(placeGuard);
 
-  guardResizeHandler = () => requestAnimationFrame(placeGuard);
+        guardResizeHandler = () => requestAnimationFrame(placeGuard);
         window.addEventListener('resize', guardResizeHandler, { passive: true });
         window.addEventListener('orientationchange', guardResizeHandler);
         
@@ -1243,22 +1194,17 @@ function initGiftModal() {
   downloadBtn.addEventListener('click', () => downloadImage(currentUrl, FILENAME));
 }
 
-// ===== INITIALIZE ALL =====
 function init() {
-  // Ensure DOM cache is ready
   if (!DOM.hero) DOM.init();
   
-  // Critical animations first
   initHeroAnimations();
   initMessage();
   initDetails();
   initAnchors();
   
-  // Flower layout (persistent, eager mount)
   FlowerLayout.init();
   setupMapLazyLoad();
   
-  // Deferred non-critical animations
   if (!isMobile()) {
     requestIdleCallback(() => {
       initParallaxBlobs();
@@ -1266,17 +1212,14 @@ function init() {
       revealSections();
     });
   } else {
-    // On mobile, defer even more
     setTimeout(() => {
       revealSections();
     }, 500);
   }
   
-  // Modal init
   initGiftModal();
 }
 
-// Smart initialization
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
@@ -1298,100 +1241,174 @@ if (!window.requestIdleCallback) {
   };
 }
 
-// === Booster Block (perf micro-optimizations) ===
-(function booster(){
-  // Breakpoint helper
-  function bp(){const w=window.innerWidth;return w<480?'xs':w<768?'sm':w<1024?'md':'lg';}
-  const CAT = bp();
-  const G = (window.__boosterFlags = window.__boosterFlags || { petals:false, parallax:false, reveals:false, details:false });
-
-  // Viewport-category layout caching (non-invasive)
-  try {
-    const existing = sessionStorage.getItem('flowersLayout');
-    const catKey = 'flowersLayout_cat_'+CAT;
-    if (existing && !sessionStorage.getItem(catKey)) sessionStorage.setItem(catKey, existing);
-    else if (!existing){
-      const alt = sessionStorage.getItem(catKey);
-      if (alt) sessionStorage.setItem('flowersLayout', alt);
-    }
-  } catch(e) {}
-
-  // Suspend GSAP when tab hidden
-  if (typeof document!=='undefined'){
-    document.addEventListener('visibilitychange',()=>{
-      if (typeof gsap==='undefined') return;
-      if (document.hidden){
-        if (gsap.ticker) gsap.ticker.sleep();
-        gsap.globalTimeline && gsap.globalTimeline.pause();
-      } else {
-        if (gsap.ticker) gsap.ticker.wake();
-        gsap.globalTimeline && gsap.globalTimeline.resume();
+// ===== PERFORMANCE BOOSTER BLOCK =====
+(function() {
+  'use strict';
+  
+  // Tab visibility sleep/wake optimization
+  let isTabVisible = true;
+  let pausedAnimations = [];
+  
+  function pauseGSAP() {
+    if (typeof gsap === 'undefined') return;
+    pausedAnimations = gsap.globalTimeline.getChildren();
+    gsap.globalTimeline.pause();
+    ScrollTrigger?.pauseAll?.();
+  }
+  
+  function resumeGSAP() {
+    if (typeof gsap === 'undefined') return;
+    gsap.globalTimeline.resume();
+    ScrollTrigger?.resumeAll?.();
+  }
+  
+  document.addEventListener('visibilitychange', () => {
+    isTabVisible = !document.hidden;
+    if (isTabVisible) resumeGSAP();
+    else pauseGSAP();
+  });
+  
+  // Advanced intersection observer for simple reveals (replaces ScrollTrigger where possible)
+  const simpleIO = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const el = entry.target;
+        if (el.dataset.revealed === '1') return;
+        el.dataset.revealed = '1';
+        
+        if (typeof gsap !== 'undefined' && motionOK) {
+          gsap.fromTo(el, 
+            { opacity: 0, y: 20 },
+            { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }
+          );
+        } else {
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+        }
+        simpleIO.unobserve(el);
       }
-    },{passive:true});
+    });
+  }, { rootMargin: '50px' });
+  
+  // Auto-observe simple reveal elements
+  requestIdleCallback(() => {
+    document.querySelectorAll('.card, .btn, .subtitle').forEach(el => {
+      if (!el.closest('.hero')) simpleIO.observe(el);
+    });
+  });
+  
+  // Viewport category caching for flower layout
+  let cachedVPCategory = null;
+  let lastVPWidth = 0;
+  
+  function getCachedViewportCategory() {
+    const w = window.innerWidth;
+    if (w === lastVPWidth && cachedVPCategory) return cachedVPCategory;
+    
+    lastVPWidth = w;
+    if (w < 480) cachedVPCategory = 'xs';
+    else if (w < 768) cachedVPCategory = 'sm';
+    else if (w < 1024) cachedVPCategory = 'md';
+    else cachedVPCategory = 'lg';
+    
+    return cachedVPCategory;
   }
-
-  // Style injection for contain / will-change if not present
-  try {
-    const NEEDLE = '.booster-contain-rules';
-    if (!document.querySelector(NEEDLE)){
-      const style = document.createElement('style');
-      style.className = NEEDLE.slice(1);
-      style.textContent = '.panel,.flowers-bg,.petals-layer{contain:layout style paint;will-change:transform;}';
-      document.head.appendChild(style);
+  
+  // Force contain and will-change CSS optimizations
+  function injectCSSOptimizations() {
+    const style = document.createElement('style');
+    style.textContent = `
+      .flowers-bg { contain: layout style paint; }
+      .flower { will-change: transform; contain: layout; }
+      .petals-layer { contain: layout style; }
+      .petal { will-change: transform; contain: layout; }
+      .blob { will-change: transform; contain: layout; }
+      .message__line { contain: layout; }
+      .modal { contain: layout style; }
+      .hero__content { contain: layout; }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // Defer non-critical animations with requestAnimationFrame batching
+  const deferredTasks = [];
+  let isProcessingDeferred = false;
+  
+  function addDeferredTask(task) {
+    deferredTasks.push(task);
+    if (!isProcessingDeferred) {
+      isProcessingDeferred = true;
+      requestAnimationFrame(processDeferredTasks);
     }
-  } catch(e) {}
-
-  // Replace simple ScrollTrigger usage with IntersectionObserver for details & panel reveals
-  if ('IntersectionObserver' in window && typeof gsap!=='undefined') {
-    // Override initDetails
-    initDetails = function(){
-      const section = DOM.detalles; if(!section) return;
-      const cards = section.querySelectorAll('.card');
-      const obs = new IntersectionObserver(entries=>{
-        entries.forEach(en=>{if(en.isIntersecting){
-          gsap.from(cards,{opacity:0,y:24,duration:0.6,stagger: (isMobile()?0.1:0.15), ease:'power2.out'});
-          obs.disconnect();
-        }});
-      },{root:null,threshold:0.15});
-      obs.observe(section);
-    };
-    // Override revealSections
-    revealSections = function(){
-      const panels = document.querySelectorAll('.panel');
-      const obs = new IntersectionObserver(entries=>{
-        entries.forEach(en=>{if(en.isIntersecting){
-          gsap.fromTo(en.target,{opacity:0,y:30},{opacity:1,y:0,duration:0.8,ease:'power2.out'});
-          obs.unobserve(en.target);
-        }});
-      },{root:null,threshold:0.1});
-      panels.forEach(p=>obs.observe(p));
-    };
-
-    // Kill non-essential ScrollTriggers (keep message pin)
-    if (typeof ScrollTrigger!=='undefined'){
-      ScrollTrigger.getAll().forEach(t=>{
-        const trg = t.trigger;
-        if (!trg || !trg.classList) return;
-        const isPanel = trg.classList.contains('panel');
-        const isMensaje = trg.id === 'mensaje' || trg.closest && trg.closest('#mensaje');
-        const isDetalles = trg.id === 'detalles' || trg.closest && trg.closest('#detalles');
-        if ((isPanel && !isMensaje) || isDetalles) t.kill();
-      });
+  }
+  
+  function processDeferredTasks() {
+    const start = performance.now();
+    while (deferredTasks.length && (performance.now() - start) < 16) {
+      const task = deferredTasks.shift();
+      if (typeof task === 'function') task();
     }
-
-    // Bootstrap IO-based reveals immediately if not already done
-    if (!G.reveals){ G.reveals = true; requestAnimationFrame(()=> revealSections()); }
-    if (!G.details){ G.details = true; requestAnimationFrame(()=> initDetails()); }
+    
+    if (deferredTasks.length) {
+      requestAnimationFrame(processDeferredTasks);
+    } else {
+      isProcessingDeferred = false;
+    }
   }
-
-  // Defer non-critical idle motions (petals / parallax) with rAF chain + requestIdleCallback
-  function defer(fn){let id=0;function step(){id++;if(id<3)requestAnimationFrame(step);else fn();}requestAnimationFrame(step);} // wait ~3 frames
-  if (typeof requestIdleCallback==='function'){
-    requestIdleCallback(()=>defer(()=>{
-      if (!G.petals){ G.petals = true; initPetals(); }
-      if (!isMobile() && !G.parallax){ G.parallax = true; initParallaxBlobs(); }
-    }));
+  
+  // Override original functions to use deferred system
+  const originalInitPetals = window.initPetals;
+  const originalInitParallaxBlobs = window.initParallaxBlobs;
+  
+  if (originalInitPetals) {
+    window.initPetals = function() {
+      addDeferredTask(originalInitPetals);
+    };
   }
-
-  // Minimal comment cleanup example (no runtime effect) - intentionally left sparse.
+  
+  if (originalInitParallaxBlobs) {
+    window.initParallaxBlobs = function() {
+      addDeferredTask(originalInitParallaxBlobs);
+    };
+  }
+  
+  // Memory-efficient flower layout caching
+  const flowerLayoutCache = new Map();
+  const maxCacheSize = 4;
+  
+  function cacheFlowerLayout(key, layout) {
+    if (flowerLayoutCache.size >= maxCacheSize) {
+      const firstKey = flowerLayoutCache.keys().next().value;
+      flowerLayoutCache.delete(firstKey);
+    }
+    flowerLayoutCache.set(key, layout);
+  }
+  
+  function getCachedFlowerLayout(key) {
+    return flowerLayoutCache.get(key);
+  }
+  
+  // Expose utilities globally
+  window.perfBooster = {
+    getCachedViewportCategory,
+    addDeferredTask,
+    cacheFlowerLayout,
+    getCachedFlowerLayout,
+    isTabVisible: () => isTabVisible
+  };
+  
+  // Initialize CSS optimizations
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectCSSOptimizations);
+  } else {
+    injectCSSOptimizations();
+  }
+  
+  // Cleanup on unload
+  window.addEventListener('beforeunload', () => {
+    pausedAnimations.length = 0;
+    flowerLayoutCache.clear();
+    deferredTasks.length = 0;
+  });
+  
 })();
