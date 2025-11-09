@@ -100,7 +100,7 @@ body{
   place-items:center;
   position:relative;
   overflow:hidden;
-  background-image: url('assets/images/bg.png');
+  background-image: url('assets/bg.png');
   background-repeat: repeat;
   background-size: 300px;
   background-position: center;

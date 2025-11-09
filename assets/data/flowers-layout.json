@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "version": 1,
+    "author": "static-manual",
+    "breakpoints": ["xs","sm","md","lg"],
+    "notes": "Manual responsive flower layout; coordinates are percentages of section width/height. Sizes are base px for md; scaled per breakpoint using scales map. Overlaps avoided by manual curation."
+  },
+  "scales": {
+    "xs": 0.55,
+    "sm": 0.75,
+    "md": 1.0,
+    "lg": 1.15
+  },
+  "sections": {
+    "hero": [
+      { "img": "flower1.webp",  "xPct": 6,  "yPct": 8,  "size": 160, "rotation": 15 },
+      { "img": "flower2.webp",  "xPct": 78, "yPct": 10, "size": 150, "rotation": -10 },
+      { "img": "flower3.webp",  "xPct": 18, "yPct": 55, "size": 170, "rotation": 30 },
+      { "img": "flower4.webp",  "xPct": 88, "yPct": 62, "size": 180, "rotation": -22 },
+      { "img": "flower5.webp",  "xPct": 48, "yPct": 84, "size": 140, "rotation": 12 }
+    ],
+    "mensaje": [
+      { "img": "flower6.webp",  "xPct": 10, "yPct": 18, "size": 150, "rotation": -5 },
+      { "img": "flower7.webp",  "xPct": 82, "yPct": 22, "size": 140, "rotation": 18 },
+      { "img": "flower8.webp",  "xPct": 24, "yPct": 72, "size": 150, "rotation": -12 },
+      { "img": "flower9.webp",  "xPct": 70, "yPct": 78, "size": 160, "rotation": 26 }
+    ],
+    "detalles": [
+      { "img": "flower10.webp", "xPct": 6,  "yPct": 24, "size": 150, "rotation": 15 },
+      { "img": "flower11.webp", "xPct": 90, "yPct": 26, "size": 150, "rotation": -18 },
+      { "img": "flower12.webp", "xPct": 18, "yPct": 70, "size": 160, "rotation": 22 },
+      { "img": "flower13.webp", "xPct": 82, "yPct": 72, "size": 155, "rotation": -8 },
+      { "img": "flower14.webp", "xPct": 48, "yPct": 50, "size": 170, "rotation": 30 }
+    ],
+    "ubic": [
+      { "img": "flower15.webp", "xPct": 8,  "yPct": 18, "size": 150, "rotation": -10 },
+      { "img": "flower16.webp", "xPct": 86, "yPct": 20, "size": 150, "rotation": 18 },
+      { "img": "flower17.webp", "xPct": 22, "yPct": 78, "size": 150, "rotation": -6 },
+      { "img": "flower18.webp", "xPct": 74, "yPct": 80, "size": 155, "rotation": 26 },
+      { "img": "flower19.webp", "xPct": 50, "yPct": 54, "size": 165, "rotation": -14 }
+    ],
+    "rsvp": [
+      { "img": "flower20.webp", "xPct": 10, "yPct": 20, "size": 160, "rotation": -8 },
+      { "img": "flower21.webp", "xPct": 86, "yPct": 22, "size": 150, "rotation": 16 },
+      { "img": "flower22.webp", "xPct": 20, "yPct": 76, "size": 150, "rotation": -20 },
+      { "img": "flower23.webp", "xPct": 74, "yPct": 78, "size": 155, "rotation": 24 },
+      { "img": "flower24.webp", "xPct": 48, "yPct": 54, "size": 165, "rotation": -12 }
+    ]
+  },
+  "breakpointOverrides": {
+    "xs": {
+      "hero": [ { "img": "flower25.webp", "xPct": 52, "yPct": 12, "size": 150, "rotation": 8 } ],
+      "rsvp": [ { "img": "flower26.webp", "xPct": 52, "yPct": 14, "size": 150, "rotation": -6 } ]
+    },
+    "lg": {
+      "hero": [ { "img": "flower3.webp", "xPct": 30, "yPct": 30, "size": 200, "rotation": 30 } ]
+    }
+  }
+}

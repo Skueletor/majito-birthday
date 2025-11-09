@@ -710,15 +710,121 @@ const FlowerLayout = (function(){
     mountLayout(layout);
   }
 
-  function init(){
-    // Eagerly hydrate the cached layout (or generate a fresh one) so flowers exist before any scroll.
-    let layout = restoreLayout();
-    if (!layout){
-      layout = generateLayout();
-      persistLayout(layout);
+  // === STATIC LAYOUT LOADING STRATEGY ===
+  // improved: instead of computing layout every visit, try to load a precomputed JSON for faster TTI.
+  // Fallback to dynamic generation only if fetch fails (ensures resilience).
+  const STATIC_LAYOUT_URL = 'assets/data/flowers-layout.json';
+
+  // Build a runtime layout (with concrete pixels) from a structured static JSON
+  function buildRuntimeLayoutFromStatic(payload){
+    try {
+      if (!payload || !payload.sections) return null;
+      const cat = viewportCategory();
+      const scaleMap = payload.scales || { xs:1, sm:1, md:1, lg:1 };
+      const scale = scaleMap[cat] || 1;
+      const overrides = (payload.breakpointOverrides && payload.breakpointOverrides[cat]) || {};
+
+      // Map section key -> selector used in this codebase
+      const keyToSelector = SECTIONS.reduce((acc, s) => { acc[s.key] = s.selector; return acc; }, {});
+
+      const runtime = { meta: { version: (payload.meta && payload.meta.version) || LAYOUT_VERSION, cat }, flowers: [] };
+      let uid = 1;
+
+      Object.keys(payload.sections).forEach(secKey => {
+        const baseList = Array.isArray(payload.sections[secKey]) ? payload.sections[secKey] : [];
+        const addl = Array.isArray(overrides[secKey]) ? overrides[secKey] : [];
+        const all = baseList.concat(addl);
+        const selector = keyToSelector[secKey] || null;
+        if (!selector) return;
+        const sectionEl = document.querySelector(selector);
+        if (!sectionEl) return;
+        const rect = sectionEl.getBoundingClientRect();
+        const W = Math.max(10, rect.width);
+        const H = Math.max(10, rect.height);
+
+        const margin = SAFE_MARGIN;
+        const usableW = Math.max(0, W - 2*margin);
+        const usableH = Math.max(0, H - 2*margin);
+
+        all.forEach(item => {
+          const imgVal = item.img;
+          let image = 1;
+          if (typeof imgVal === 'number' && Number.isFinite(imgVal)) {
+            image = Math.max(1, Math.min(26, Math.round(imgVal)));
+          } else if (typeof imgVal === 'string') {
+            const m = imgVal.match(/(\d{1,2})/);
+            if (m) image = Math.max(1, Math.min(26, parseInt(m[1], 10)));
+          }
+          const baseSize = Math.max(48, Math.round((item.size || 160) * scale));
+          const xPct = Math.max(0, Math.min(100, item.xPct ?? 50));
+          const yPct = Math.max(0, Math.min(100, item.yPct ?? 50));
+          const left = margin + Math.round((xPct/100) * Math.max(0, usableW - baseSize));
+          const top  = margin + Math.round((yPct/100) * Math.max(0, usableH - baseSize));
+
+          runtime.flowers.push({
+            uid: uid++,
+            image,
+            reuseIndex: 0,
+            section: secKey,
+            selector,
+            x: left,
+            y: top,
+            size: baseSize,
+            tier: 'static'
+          });
+        });
+      });
+
+      runtime.meta.placed = runtime.flowers.length;
+      return runtime;
+    } catch(e){
+      console.warn('[FlowerLayout] Failed to build runtime layout from static payload', e);
+      return null;
     }
-    mountLayout(layout);
-    bindRelayout();
+  }
+
+  function fetchStaticAndMount(){
+    fetch(STATIC_LAYOUT_URL, { cache: 'no-cache' })
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        return res.json();
+      })
+      .then(layout => {
+        // Accept both legacy flat format and new structured one
+        let runtime = null;
+        if (layout && Array.isArray(layout.flowers)) {
+          runtime = layout;
+        } else {
+          runtime = buildRuntimeLayoutFromStatic(layout);
+        }
+        if (!runtime || !Array.isArray(runtime.flowers)) throw new Error('Invalid static layout format');
+        try { sessionStorage.setItem('flowersLayout', JSON.stringify(runtime)); } catch(e) {}
+        mountLayout(runtime);
+        // Static layout: we skip bindRelayout (no expensive recompute) for performance.
+      })
+      .catch(err => {
+        console.warn('[FlowerLayout] Static layout load failed, generating dynamically:', err);
+        const dyn = generateLayout();
+        persistLayout(dyn);
+        try { sessionStorage.setItem('flowersLayout', JSON.stringify(dyn)); } catch(e) {}
+        mountLayout(dyn);
+        bindRelayout(); // only bind if we had to generate dynamically
+      });
+  }
+
+  function init(){
+    const cached = sessionStorage.getItem('flowersLayout');
+    if (cached){
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.flowers)) {
+          mountLayout(parsed); // fastest path
+          return; // no relayout binding (static layout)
+        }
+      } catch(e){ sessionStorage.removeItem('flowersLayout'); }
+    }
+    // No cached static layout; attempt fetch
+    fetchStaticAndMount();
   }
 
   // Relayout binding: major resize / orientation change
