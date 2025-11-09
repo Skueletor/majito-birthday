@@ -1,0 +1,33 @@
+Quiero que agregues a mi sitio una pantalla de carga profesional y estética, totalmente integrada con el diseño de la página.
+
+El sitio es una invitación de cumpleaños, con un estilo rosado, elegante, moderno y aesthetic, desarrollado en HTML, CSS, JS, GSAP y Lenis.
+
+Objetivo: antes de que aparezca la página principal, quiero mostrar una animación de carga tipo “carta que se abre”, que simule el gesto de abrir una invitación o sobre de cumpleaños. Al finalizar, debe dar paso a la página principal con una transición suave y mágica, sin saltos.
+
+Detalles clave del diseño y comportamiento:
+
+La pantalla de carga debe cubrir todo el viewport (100vh) hasta que todos los recursos estén cargados (imágenes, fuentes, decoraciones GSAP, etc.).
+
+Estilo coherente con la web: colores en tonos rosita pastel, crema, blush, tipografía elegante y suave (como Dancing Script o Playfair Display).
+
+El efecto principal puede simular una carta que se abre o un sobre desplegándose lentamente, con sombras suaves y transiciones tipo “ease-in-out”.
+
+Cuando la carga finaliza, la carta se abre completamente y se desvanece elegantemente revelando la página principal.
+
+Durante la carga, puede haber una barra o animación sutil, como pétalos flotando o un texto que diga “Abriendo invitación…” o “Preparando la sorpresa ✨”.
+
+La animación debe estar hecha con GSAP, sincronizada con el tiempo de carga real de los recursos (window.onload o Promise.all con preloads).
+
+El código debe ser ligero, moderno y limpio, optimizado para que no ralentice el sitio.
+
+Al finalizar la carga, debe inicializar Lenis y GSAP normalmente, pero solo después de que la carta haya terminado su animación.
+
+Requisitos técnicos y UX:
+
+Debe funcionar perfectamente en móviles (sin saltos de scroll ni bloqueos).
+
+Debe incluir accesibilidad básica (texto alternativo, aria-hidden para elementos decorativos).
+
+Debe mantener la estética general: rosado suave, limpio, profesional, minimalista y romántico.
+
+Evitar loaders genéricos (nada de spinners o barras simples), debe sentirse como una introducción delicada y personalizada.
