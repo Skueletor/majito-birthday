@@ -1,3 +1,4 @@
+// improved: added mountLayout fragment batching, passive listeners, early js class swap already in HTML
 // Optimized script with performance enhancements, debouncing, lazy-loading, and mobile-first approach
 // Performance utilities
 const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
@@ -603,6 +604,7 @@ const FlowerLayout = (function(){
   }
 
   function mountLayout(layout){
+    // improved: use DocumentFragment per section to minimize reflow & paint
     const bySection = new Map();
     layout.flowers.forEach(f => {
       if (!bySection.has(f.selector)) bySection.set(f.selector, []);
@@ -612,8 +614,8 @@ const FlowerLayout = (function(){
       const sectionEl = document.querySelector(selector);
       if (!sectionEl) return;
       const box = ensureBgContainer(sectionEl);
-      // Important: do NOT wipe existing if already mounted (avoid duplicates)
-      if (box.dataset.mounted === '1') return;
+      if (box.dataset.mounted === '1') return; // avoid duplicates
+      const frag = document.createDocumentFragment();
       flowers.forEach(f => {
         const img = new Image();
         img.decoding = 'async';
@@ -621,7 +623,6 @@ const FlowerLayout = (function(){
         img.alt = '';
         img.setAttribute('aria-hidden', 'true');
         img.className = 'flower ' + (Math.random() < 0.5 ? 'flower--soft' : 'flower--bold');
-        // Prefer WebP; fall back to PNG if not present
         img.src = `assets/flowers/${f.image}.webp`;
         img.onerror = function(){ this.onerror=null; this.src = `assets/flowers/png/${f.image}.png`; };
         img.style.left = f.x + 'px';
@@ -631,10 +632,10 @@ const FlowerLayout = (function(){
         img.dataset.flowerUid = f.uid;
         img.dataset.flowerReuse = f.reuseIndex;
         img.dataset.flowerImage = f.image;
-        box.appendChild(img);
+        frag.appendChild(img);
       });
+      box.appendChild(frag);
       box.dataset.mounted = '1';
-      // Add gentle idle motion after mount
       enableIdleMotion(box);
     });
   }
@@ -748,8 +749,8 @@ const FlowerLayout = (function(){
         animateToLayout(fresh); // tween to new positions
       }, 180); // slight debounce
     }
-    window.addEventListener('resize', handle);
-    window.addEventListener('orientationchange', handle);
+    window.addEventListener('resize', handle, { passive: true });
+    window.addEventListener('orientationchange', handle, { passive: true });
   }
 
   return { init };

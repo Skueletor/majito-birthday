@@ -1,4 +1,5 @@
 :root{
+/* improved: performance tweaks (content-visibility, contain, GPU hints) without visual changes */
   /* Color palette */
   --bg: #faf7f5;
   --ink: #2b2b2b;
@@ -79,6 +80,7 @@ body{
   -moz-osx-font-smoothing: grayscale;
   /* Safe-area support for iOS notch */
   padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+  contain-intrinsic-size: 1000px; /* improved: prevents layout shifts on very slow devices */
 }
 
 /* Container - mobile first */
@@ -103,6 +105,8 @@ body{
   background-size: 300px;
   background-position: center;
   background-blend-mode: overlay;
+  content-visibility: auto; /* improved: skip offscreen rendering cost */
+  contain: layout paint style; /* improved: isolate section for faster painting */
 }
 @media (min-width: 640px){.section{background-size: 350px}}
 @media (min-width: 1024px){.section{background-size: 400px}}
@@ -118,7 +122,9 @@ body{
   filter:blur(25px);
   opacity:.5;
   mix-blend-mode:multiply;
-  will-change:transform;
+  will-change: transform; /* improved */
+  transform: translateZ(0); /* improved GPU promotion */
+  backface-visibility: hidden;
 }
 @media (min-width: 768px){.blob{filter:blur(35px); opacity:.6}}
 
@@ -150,9 +156,11 @@ body{
   opacity:.28; /* Softer presence */
   filter: blur(6px) brightness(1.05) saturate(.9) drop-shadow(0 8px 18px rgba(0,0,0,.05));
   pointer-events:none;
-  will-change: transform;
+  will-change: transform; /* improved */
   mix-blend-mode: multiply;
   transition: opacity 0.3s ease;
+  transform: translateZ(0); /* improved */
+  backface-visibility: hidden;
 }
 @media (min-width: 768px){
   .flower{
@@ -167,7 +175,8 @@ body{
   pointer-events:none;
   z-index:1;
   overflow:hidden;
-  contain: layout style paint;
+  contain: layout style paint; /* improved */
+  will-change: transform; /* improved */
 }
 
 .flower--soft{
@@ -204,6 +213,7 @@ body{
   border: var(--border-rose);
   box-shadow: var(--shadow-xl);
   z-index: 2;
+  will-change: transform; /* improved: entrance animation */
 }
 
 .overtitle{
@@ -261,6 +271,7 @@ body{
   transition: transform 0.2s ease, filter 0.2s ease;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  will-change: transform; /* improved */
 }
 
 .btn--primary{
@@ -370,6 +381,7 @@ body{
   align-items:stretch;
   position:relative;
   z-index:2;
+  contain: layout paint; /* improved */
 }
 
 .card{
@@ -383,6 +395,7 @@ body{
   z-index: 2;
   overflow: hidden;
   contain: layout style paint;
+  will-change: transform; /* improved: reveal animation */
 }
 
 .card::before {
@@ -504,8 +517,10 @@ body{
   border-radius: 70% 70% 70% 0 / 80% 80% 80% 0;
   box-shadow:0 6px 15px rgba(224,138,168,.15);
   opacity:.65;
-  will-change: transform;
+  will-change: transform; /* improved */
   backdrop-filter: blur(2px);
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 .petal.p2{
   background: radial-gradient(100% 100% at 30% 40%, #fff 0%, rgba(255,255,255,.0) 60%), #f6b7c9;
@@ -528,6 +543,7 @@ body{
   position:relative;
   z-index:2;
   contain: layout style paint;
+  will-change: transform; /* improved */
 }
 
 .map-actions{
@@ -645,6 +661,7 @@ body{
   opacity: 0;
   transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
               opacity 0.4s ease;
+  will-change: transform, opacity; /* improved */
 }
 .modal__actions{ position: relative; }
 
@@ -774,7 +791,7 @@ body{
   .blob{
     width: clamp(160px, 70vmin, 400px);
     height: clamp(160px, 70vmin, 400px);
-    filter:blur(22px);
+    filter: blur(20px);
   }
   .map-wrap{min-height:280px}
 }

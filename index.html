@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="es">
+<!-- improved: added no-js class for progressive enhancement, preload bg image, tiny inline script to swap to js class early without layout changes -->
+<html lang="es" class="no-js">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -20,19 +21,23 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="preconnect" href="https://unpkg.com" />
     
-    <!-- Preload critical font -->
+  <!-- Preload critical font -->
     <link rel="preload" href="assets/fonts/Railey.woff2" as="font" type="font/woff2" crossorigin />
+  <!-- Preload repeating background image for faster first paint -->
+  <link rel="preload" href="assets/images/bg.png" as="image" />
     
     <!-- Fonts - optimized loading -->
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Raleway:wght@300;500;700&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet" />
     <link href="https://db.onlinewebfonts.com/t/9c080e9c6cab37228b6efdfd9fb6e2f9.woff2" rel="stylesheet" />
 
-    <!-- Critical CSS -->
-    <link rel="stylesheet" href="./styles.css" />
+  <!-- Critical CSS (kept same path) -->
+  <link rel="stylesheet" href="./styles.css" />
     
     <!-- Leaflet CSS - deferred for non-critical map -->
     <link rel="preload" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
     <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /></noscript>
+    <!-- Inline early script: swap no-js -> js class ASAP (micro, no render blocking) -->
+    <script>document.documentElement.className=document.documentElement.className.replace('no-js','js');</script>
   </head>
   <body>
     <div id="app">
