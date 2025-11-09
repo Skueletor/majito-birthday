@@ -1,16 +1,31 @@
 // Lenis + GSAP smooth scrolling and storytelling animations
 
-// 1) Init Lenis
-const lenis = new Lenis({
-  lerp: 0.12,
-  smoothWheel: true,
-});
-lenis.on('scroll', () => ScrollTrigger.update());
-function raf(time){
-  lenis.raf(time);
+// Perf helpers
+const __utils = (function(){
+  function debounce(fn, wait=150){
+    let t; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), wait); };
+  }
+  function throttle(fn, wait=150){
+    let last=0, id=null, ctx, args; const later=()=>{ last=Date.now(); id=null; fn.apply(ctx,args); };
+    return function(){ ctx=this; args=arguments; const now=Date.now(); const remain=wait-(now-last); if(remain<=0||remain>wait){ if(id){clearTimeout(id); id=null;} later(); } else if(!id){ id=setTimeout(later, remain); } };
+  }
+  return { debounce, throttle };
+})();
+
+// 1) Init Lenis (mobile-friendly)
+const isSmallMobile = window.matchMedia('(max-width: 639px)').matches;
+let lenis = null;
+try{
+  lenis = new Lenis({
+    lerp: isSmallMobile ? 0.08 : 0.12,
+    smoothWheel: !isSmallMobile,
+  });
+  if (typeof ScrollTrigger !== 'undefined') lenis.on('scroll', () => ScrollTrigger.update());
+  function raf(time){ if(lenis) { lenis.raf(time); requestAnimationFrame(raf); } }
   requestAnimationFrame(raf);
-}
-requestAnimationFrame(raf);
+  // expose for guards
+  window.__lenis = lenis;
+}catch(e){ /* no-op if Lenis unavailable */ }
 
 // 2) GSAP + ScrollTrigger
 // Register plugin
@@ -31,9 +46,10 @@ function fadeUp(targets, opts = {}){
 
 // Respect reduced motion
 const motionOK = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+const mobileAnim = window.matchMedia('(max-width: 767px)').matches;
 
 // HERO enter animations
-if (motionOK){
+if (motionOK && !mobileAnim){
   fadeUp('.overtitle', { delay: 0.1 });
   // Title reveal with clip-path for a cleaner, modern look
   // eslint-disable-next-line no-undef
@@ -44,7 +60,7 @@ if (motionOK){
 
 // Parallax blobs/roses
 // eslint-disable-next-line no-undef
-if (motionOK) {
+if (motionOK && !mobileAnim) {
   ['.blob--tl','.blob--tr','.blob--bl','.blob--br'].forEach((sel, i) => {
     // eslint-disable-next-line no-undef
     gsap.to(sel, {
@@ -127,6 +143,7 @@ if (motionOK) {
 
   // ---- Utilities --------------------------------------------------------
   const isMobile = () => window.matchMedia(`(max-width:${BREAKPOINT}px)`).matches;
+  const isLowAnim = () => window.matchMedia('(max-width: 767px)').matches || !motionOK;
   const rand = (a,b)=> Math.random() * (b-a) + a;
   const rint = (a,b)=> Math.floor(rand(a, b+1));
   const shuffle = (arr)=> arr.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(p=>p[1]);
@@ -227,12 +244,14 @@ if (motionOK) {
 
         if (!ok) return; // skip this id if still no space
 
-        const img = new Image();
+  const img = new Image();
         img.className = 'flower';
         img.decoding = 'async';
         img.loading = 'lazy';
         img.alt = '';
-        img.src = `assets/flowers/${id}.png`;
+  // Try WebP first then PNG fallback
+  img.src = `assets/flowers/${id}.webp`;
+  img.onerror = function(){ this.onerror=null; this.src = `assets/flowers/${id}.png`; };
         img.style.position = 'absolute';
         img.style.left = rect.left + 'px';
         img.style.top = rect.top + 'px';
@@ -278,7 +297,8 @@ if (motionOK) {
           if (!ok) continue;
           const img = new Image();
           img.className = 'flower'; img.decoding = 'async'; img.loading = 'lazy'; img.alt='';
-          img.src = `assets/flowers/${id}.png`;
+          img.src = `assets/flowers/${id}.webp`;
+          img.onerror = function(){ this.onerror=null; this.src = `assets/flowers/${id}.png`; };
           img.style.position='absolute'; img.style.left=rect.left+'px'; img.style.top=rect.top+'px'; img.style.width=rect.width+'px';
           img.style.transform=`rotate(${rint(-18,18)}deg)`; img.style.willChange='transform'; img.style.transition='transform .45s ease, opacity .3s ease';
           box.appendChild(img);
@@ -312,8 +332,9 @@ if (motionOK) {
         ok = true; rect = cand;
       }
       if (!ok) return;
-      const img = new Image(); img.className='flower'; img.decoding='async'; img.loading='lazy'; img.alt='';
-      img.src=`assets/flowers/${id}.png`;
+  const img = new Image(); img.className='flower'; img.decoding='async'; img.loading='lazy'; img.alt='';
+  img.src=`assets/flowers/${id}.webp`;
+  img.onerror = function(){ this.onerror=null; this.src = `assets/flowers/${id}.png`; };
       img.style.position='absolute'; img.style.left=rect.left+'px'; img.style.top=rect.top+'px'; img.style.width=rect.width+'px';
       img.style.transform=`rotate(${rint(-18,18)}deg)`; img.style.willChange='transform'; img.style.transition='transform .45s ease, opacity .3s ease';
       box.appendChild(img); placed.push(rect);
@@ -325,12 +346,35 @@ if (motionOK) {
     });
   }
 
-  // Build all sections
-  function buildAll(){ SECTIONS.forEach(buildSection); }
-  buildAll();
+  // Lazy build per section
+  const built = new Set();
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        const sel = entry.target.getAttribute('data-section-sel');
+        const conf = SECTIONS.find(s=>s.selector === sel);
+        if(conf && !built.has(sel)){
+          buildSection(conf); built.add(sel);
+        }
+      }
+    })
+  }, { root:null, rootMargin:'200px 0px', threshold:0 });
 
-  // Rebuild on resize (debounced)
-  let t; window.addEventListener('resize', ()=>{ clearTimeout(t); t=setTimeout(buildAll, 180); });
+  // observe sections
+  SECTIONS.forEach(s=>{
+    const el = document.querySelector(s.selector);
+    if(el){ el.setAttribute('data-section-sel', s.selector); io.observe(el); }
+  });
+
+  // Rebuild visible sections on resize (throttled)
+  const rebuildVisible = __utils.throttle(()=>{
+    SECTIONS.forEach(s=>{
+      const el = document.querySelector(s.selector);
+      if(!el) return; const r = el.getBoundingClientRect();
+      if(r.bottom > 0 && r.top < window.innerHeight){ buildSection(s); }
+    })
+  }, 200);
+  window.addEventListener('resize', rebuildVisible);
 })();
 
 // DETAILS: cards stagger in when visible
@@ -361,7 +405,8 @@ if (motionOK) {
       const target = document.querySelector(id);
       if(!target) return;
       e.preventDefault();
-      lenis.scrollTo(target, { offset: -10 });
+      if(window.__lenis){ window.__lenis.scrollTo(target, { offset: -10 }); }
+      else { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     });
   });
 })();
@@ -395,7 +440,7 @@ if (motionOK) {
     document.body.prepend(layer);
   }
 
-  const MAX_ACTIVE = 20; // fewer concurrent petals for a calmer, professional look
+  const MAX_ACTIVE = mobileAnim ? 8 : 20; // calmer on mobile
   let active = 0;
 
   function rand(min, max){ return Math.random() * (max - min) + min; }
@@ -460,7 +505,7 @@ if (motionOK) {
   }
 
   // Warm start: sprinkle some initial petals
-  const initial = 6;
+  const initial = mobileAnim ? 3 : 6;
   for (let i=0;i<initial;i++) spawnPetal();
   scheduleNext();
 })();
@@ -468,9 +513,12 @@ if (motionOK) {
 // (replaced by unified collision-aware initSectionFlowers above)
 
 // LEAFLET MAP
-(function initMap(){
+(function lazyMap(){
   const wrap = document.getElementById('mapWrap');
-  if(!wrap || typeof L === 'undefined') return;
+  if(!wrap) return;
+  let created = false;
+  const createMap = ()=>{
+    if(created || typeof L === 'undefined') return; created = true;
 
   // Create inner div for Leaflet
   const mapDiv = document.createElement('div');
@@ -496,8 +544,9 @@ if (motionOK) {
   }).setView([0,0], 2);
 
   // Use Carto Positron as base (warm, light) with fallback to standard OSM
+  const mobile = window.matchMedia('(max-width: 767px)').matches;
   const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png', {
-    maxZoom: 19,
+    maxZoom: mobile ? 15 : 19,
     attribution: '&copy; OpenStreetMap &copy; CARTO',
   });
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -546,6 +595,11 @@ if (motionOK) {
       })
       .catch(()=>{/* swallow */});
   }
+  };
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ createMap(); io.disconnect(); } });
+  }, { root:null, rootMargin:'200px 0px', threshold:0 });
+  io.observe(wrap);
 })();
 
 // GIFT QR MODAL
